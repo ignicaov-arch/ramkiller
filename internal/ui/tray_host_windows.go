@@ -50,8 +50,6 @@ func (t *TrayHost) EnsureCreated(hIcon uintptr, tip string) {
 	ok, _, _ := procShellNotifyIconW.Call(NIM_ADD, uintptr(unsafe.Pointer(&nid)))
 	if ok != 0 {
 		t.added = true
-		nid.UVersion = 4
-		procShellNotifyIconW.Call(NIM_SETVERSION, uintptr(unsafe.Pointer(&nid)))
 	}
 }
 

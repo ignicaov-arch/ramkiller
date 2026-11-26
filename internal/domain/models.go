@@ -13,7 +13,7 @@ const (
 	RegionRegistryCache      CleanRegion = 1 << 6
 	RegionModifiedFileCache  CleanRegion = 1 << 7
 
-	// MaskDefault mantem limpeza segura sem travamentos da lista Standby/Modificada completa.
+	// MaskDefault mantem limpeza segura sem listas de espera completas.
 	MaskDefault = RegionWorkingSet | RegionSystemFileCache | RegionStandbyPriority0 |
 		RegionCombineMemoryLists | RegionRegistryCache | RegionModifiedFileCache
 	MaskFreezeRisk = RegionStandbyList | RegionModifiedPageList
@@ -48,6 +48,34 @@ const (
 	ActionOpenTaskMgr  TrayAction = 2
 )
 
+// ProcAction define o destino cirurgico aplicado a cada processo na limpeza.
+type ProcAction string
+
+const (
+	ProcKeepSystem  ProcAction = "keep_system"
+	ProcKeepAndTrim ProcAction = "keep_trim"
+	ProcKill        ProcAction = "kill"
+)
+
+// ProcSnapshot captura o estado de arvore, sessao, janela e consumo de um processo.
+type ProcSnapshot struct {
+	PID             uint32 `json:"pid"`
+	ParentPID       uint32 `json:"parentPid"`
+	SessionID       uint32 `json:"sessionId"`
+	Name            string `json:"name"`
+	CmdLine         string `json:"cmdLine,omitempty"`
+	PrivateBytes    uint64 `json:"privateBytes"`
+	WorkingSetBytes uint64 `json:"workingSetBytes"`
+	HasOpenWindow   bool   `json:"hasOpenWindow"`
+	CPUBusy         bool   `json:"cpuBusy"`
+}
+
+// ProcDecision representa a decisao deterministica do classificador para um PID.
+type ProcDecision struct {
+	Action ProcAction `json:"action"`
+	Reason string     `json:"reason"`
+}
+
 // BankStat descreve metricas de um subsistema de memoria (Fisica, Paginacao, Cache).
 type BankStat struct {
 	UsedBytes    uint64  `json:"usedBytes"`
@@ -64,6 +92,8 @@ type ProcessInfo struct {
 	PrivateBytes    uint64 `json:"privateBytes"`
 	WorkingSetBytes uint64 `json:"workingSetBytes"`
 	Protected       bool   `json:"protected"`
+	OpenWindow      bool   `json:"openWindow"`
+	Killable        bool   `json:"killable"`
 	Anomaly         bool   `json:"anomaly"`
 }
 
@@ -84,6 +114,8 @@ type CleanResult struct {
 	BeforeUsedBytes uint64      `json:"beforeUsedBytes"`
 	AfterUsedBytes  uint64      `json:"afterUsedBytes"`
 	FreedBytes      uint64      `json:"freedBytes"`
+	KilledProcs     int         `json:"killedProcs"`
+	KilledNames     []string    `json:"killedNames,omitempty"`
 	TrimmedProcs    int         `json:"trimmedProcs"`
 	KernelExecuted  bool        `json:"kernelExecuted"`
 	Elevated        bool        `json:"elevated"`

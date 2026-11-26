@@ -5,8 +5,8 @@ package ui
 import "github.com/ignicaov-arch/ramkiller/internal/domain"
 
 const (
-	settingsWinWidth  = 650
-	settingsWinHeight = 452
+	settingsWinWidth  = 680
+	settingsWinHeight = 480
 	sidebarWidth      = 148
 )
 
@@ -18,7 +18,6 @@ func RenderSettingsCanvas(tab int, cfg domain.Config, elevated bool, hoverID str
 	c.ClearOpaque(ColorBgBase)
 	var hits []HitRegion
 
-	// Sidebar esquerda
 	c.FillRect(0, 0, sidebarWidth, settingsWinHeight, ColorBgCard)
 	c.FillRect(sidebarWidth, 0, 1, settingsWinHeight, ColorBorder)
 	c.DrawText("Definições", FontUI, 15, true, ColorTextPrimary, RECT{16, 16, sidebarWidth - 12, 40}, dtLeft|dtVCenter|dtSingleLine)
@@ -57,7 +56,6 @@ func RenderSettingsCanvas(tab int, cfg domain.Config, elevated bool, hoverID str
 		hits = append(hits, renderTabTray(c, cx, cw, cfg, hoverID)...)
 	}
 
-	// Rodape
 	c.FillRect(sidebarWidth+1, settingsWinHeight-54, settingsWinWidth-sidebarWidth-1, 1, ColorBorder)
 	hits = append(hits, drawButton(c, "settings_reset", cx, settingsWinHeight-42, 136, 30, "Restaurar Padrão", ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID))
 	hits = append(hits, drawButton(c, "settings_close", settingsWinWidth-18-96, settingsWinHeight-42, 96, 30, "Fechar", ColorGreen, 0, ColorBgBase, true, hoverID))
@@ -79,27 +77,29 @@ func tabID(i int) string {
 
 func renderTabGeneral(c *Canvas, x, w int, cfg domain.Config, elevated bool, hoverID string) []HitRegion {
 	var hits []HitRegion
-	c.FillRoundRect(x, 16, w, 212, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, 16, w, 212, RadiusCard, 1, ColorBorder)
-	c.DrawText("Comportamento Geral", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 24, int32(x + w - 14), 44}, dtLeft|dtVCenter|dtSingleLine)
+	c.FillRoundRect(x, 16, w, 232, RadiusCard, ColorBgCard)
+	c.StrokeRoundRect(x, 16, w, 232, RadiusCard, 1, ColorBorder)
+	c.DrawText("Comportamento Geral e Autoregeneração", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 24, int32(x + w - 14), 44}, dtLeft|dtVCenter|dtSingleLine)
 
-	hits = append(hits, drawCheckbox(c, "chk_always_top", x+14, 54, cfg.AlwaysOnTop, "Manter janela sempre no topo", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_autorun", x+14, 84, cfg.LoadOnStartup, "Iniciar automaticamente com o Windows", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_minimized", x+14, 114, cfg.StartMinimized, "Iniciar minimizado na bandeja", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_confirm", x+14, 144, cfg.ConfirmClean, "Confirmar antes de iniciar limpeza manual", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_always_top", x+14, 52, cfg.AlwaysOnTop, "Manter janela sempre no topo", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_autorun", x+14, 82, cfg.LoadOnStartup, "Iniciar automaticamente ao ligar o PC", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_self_heal", x+14, 112, cfg.SelfHeal, "Autoregenerar se encerrado por fora (guardião)", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_minimized", x+14, 142, cfg.StartMinimized, "Iniciar minimizado na bandeja", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_confirm", x+14, 172, cfg.ConfirmClean, "Confirmar antes de iniciar limpeza manual", hoverID))
 
-	uacLabel := "Ignorar aviso UAC ao iniciar (Tarefa Agendada Admin)"
+	uacLabel := "Ignorar aviso UAC ao ligar (Tarefa Agendada Admin)"
 	if !elevated {
-		uacLabel = "Ignorar aviso UAC (requer executar como Admin)"
+		uacLabel = "Ignorar aviso UAC ao ligar (clique para elevar Admin)"
 	}
-	hits = append(hits, drawCheckbox(c, "chk_skip_uac", x+14, 174, cfg.SkipUAC, uacLabel, hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_skip_uac", x+14, 202, cfg.SkipUAC, uacLabel, hoverID))
 
-	c.FillRoundRect(x, 240, w, 138, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, 240, w, 138, RadiusCard, 1, ColorBorder)
-	c.DrawText("Arquitetura de Proteção", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 250, int32(x + w - 14), 270}, dtLeft|dtVCenter|dtSingleLine)
-	c.DrawText("• Modo Usuário: recicla páginas ociosas sem fechar nenhum aplicativo.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 276, int32(x + w - 14), 298}, dtLeft|dtVCenter|dtSingleLine)
-	c.DrawText("• Modo Kernel (Admin): limpa caches NT, Standby 0 e combina páginas.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 302, int32(x + w - 14), 324}, dtLeft|dtVCenter|dtSingleLine)
-	c.DrawText("• Escudo Ativo: protege sistema, language_server, Vanguard e foco.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 328, int32(x + w - 14), 350}, dtLeft|dtVCenter|dtSingleLine)
+	c.FillRoundRect(x, 260, w, 150, RadiusCard, ColorBgCard)
+	c.StrokeRoundRect(x, 260, w, 150, RadiusCard, 1, ColorBorder)
+	c.DrawText("Arquitetura de Proteção", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 270, int32(x + w - 14), 290}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText("• Janelas Abertas: detectadas via WinSta0\\Default e preservadas.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 296, int32(x + w - 14), 318}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText("• Antigravity + language_server: hub ativo preservado e reciclado.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 322, int32(x + w - 14), 344}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText("• Modo Kernel (Admin): limpa todas as 8 áreas e encerra 2º plano.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 348, int32(x + w - 14), 370}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText("• Encerrar até Reiniciar: pausa guardião só até o próximo boot.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + 14), 374, int32(x + w - 14), 396}, dtLeft|dtVCenter|dtSingleLine)
 	return hits
 }
 

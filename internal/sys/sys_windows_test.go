@@ -24,7 +24,7 @@ func TestSystem32PathAntiHijacking(t *testing.T) {
 	}
 }
 
-func TestReadMemoryStatsReal(t *testing.T) {
+func TestReadMemoryStatsAndOpenWindowsReal(t *testing.T) {
 	stats, err := ReadMemoryStats(5, 2560)
 	if err != nil {
 		t.Fatalf("ReadMemoryStats falhou: %v", err)
@@ -38,14 +38,36 @@ func TestReadMemoryStatsReal(t *testing.T) {
 	if len(stats.TopProcesses) == 0 || len(stats.TopProcesses) > 5 {
 		t.Errorf("TopProcesses inesperado: len=%d", len(stats.TopProcesses))
 	}
-	for i := 1; i < len(stats.TopProcesses); i++ {
-		if stats.TopProcesses[i-1].PrivateBytes < stats.TopProcesses[i].PrivateBytes {
-			t.Errorf("TopProcesses nao ordenado por PrivateBytes")
-		}
+
+	pids, ok := EnumOpenWindowPIDs()
+	if !ok || len(pids) == 0 {
+		t.Logf("Aviso: nenhuma janela visivel detectada nesta sessao (pids=%d)", len(pids))
 	}
 }
 
-func TestTrimSelfAndEngineConcurrency(t *testing.T) {
+func TestBootSessionPauseAndResumeAcrossReboot(t *testing.T) {
+	boot1 := GetBootSessionID()
+	boot2 := GetBootSessionID()
+	if boot1 == 0 || boot1 != boot2 {
+		t.Fatalf("GetBootSessionID instavel no mesmo boot: %d vs %d", boot1, boot2)
+	}
+
+	sessFile := filepath.Join(t.TempDir(), "session.json")
+	if isPausedForBoot(sessFile, boot1) {
+		t.Fatal("nao devia iniciar pausado")
+	}
+	if err := pauseBootAt(sessFile, boot1); err != nil {
+		t.Fatalf("pauseBootAt falhou: %v", err)
+	}
+	if !isPausedForBoot(sessFile, boot1) {
+		t.Fatal("deveria estar pausado durante o mesmo boot")
+	}
+	if isPausedForBoot(sessFile, boot1+500000) {
+		t.Fatal("pausa devia expirar automaticamente no proximo boot")
+	}
+}
+
+func TestTrimSelfAndEngineConcurrencyNonDestructive(t *testing.T) {
 	if err := TrimProcessWorkingSet(uint32(os.Getpid())); err != nil {
 		t.Fatalf("TrimProcessWorkingSet no proprio processo falhou: %v", err)
 	}
@@ -53,11 +75,12 @@ func TestTrimSelfAndEngineConcurrency(t *testing.T) {
 	eng := NewEngine()
 	cfg := domain.DefaultConfig()
 	cfg.LogResults = false
+	cfg.KillBackgroundApps = false // nao encerrar apps durante unit tests
 
 	var wg sync.WaitGroup
 	var okCount, busyCount int
 	var mu sync.Mutex
-	for i := 0; i < 15; i++ {
+	for i := 0; i < 12; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

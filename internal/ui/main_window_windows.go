@@ -18,7 +18,7 @@ func createFixedDarkWindow(className, title string, clientW, clientH int, wndPro
 
 	wc := WNDCLASSEXW{
 		CbSize:        uint32(unsafe.Sizeof(WNDCLASSEXW{})),
-		Style:         CS_HREDRAW | CS_VREDRAW,
+		Style:         CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
 		LpfnWndProc:   wndProc,
 		HInstance:     hInst,
 		HCursor:       cur,

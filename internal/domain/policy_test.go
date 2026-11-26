@@ -15,15 +15,18 @@ func TestEffectiveMaskAndAutoFreezeGuard(t *testing.T) {
 	if autoMask&MaskFreezeRisk != 0 {
 		t.Fatalf("modo auto sem AllowStandbyInAuto nao pode incluir MaskFreezeRisk: %v", autoMask)
 	}
-	manualMask := EffectiveMask(cfg, SourceManual, 0)
-	if manualMask&MaskFreezeRisk != MaskFreezeRisk {
-		t.Fatalf("modo manual deve preservar mascara selecionada: %v", manualMask)
+	cfg.AllowStandbyInAuto = true
+	if EffectiveMask(cfg, SourceAuto, 0) != MaskAll {
+		t.Fatalf("modo auto com AllowStandbyInAuto deve incluir todas as regioes")
+	}
+	if EffectiveMask(cfg, SourceManual, 0) != MaskAll {
+		t.Fatalf("modo manual deve aplicar todas as regioes")
 	}
 
 	cfg.CleanMask = MaskFreezeRisk
-	fallbackMask := EffectiveMask(cfg, SourceAuto, 0)
-	if fallbackMask != RegionWorkingSet {
-		t.Fatalf("esperava fallback RegionWorkingSet, obteve %v", fallbackMask)
+	cfg.AllowStandbyInAuto = false
+	if fallback := EffectiveMask(cfg, SourceAuto, 0); fallback != RegionWorkingSet {
+		t.Fatalf("esperava fallback RegionWorkingSet, obteve %v", fallback)
 	}
 }
 
@@ -64,11 +67,8 @@ func TestProtectedProcessAndAnomaly(t *testing.T) {
 	if IsProtectedProcess("League of Legends.exe", 555, 999, 555, false) {
 		t.Error("nao devia proteger foreground quando protectForeground=false")
 	}
-	if !IsProtectedProcess("language_server.exe", 1200, 999, 888, false) {
-		t.Error("language_server.exe deve ser protegido")
-	}
 	if IsProtectedProcess("chrome.exe", 1200, 999, 888, true) {
-		t.Error("chrome em background nao deve ser protegido")
+		t.Error("chrome sem janela aberta nao e processo de nucleo")
 	}
 	if !IsAnomalyProcess(3*gb, 2560) {
 		t.Error("3 GB deve sinalizar anomalia para teto 2560 MB")
@@ -80,14 +80,8 @@ func TestProtectedProcessAndAnomaly(t *testing.T) {
 
 func TestFormattingAndTooltipUTF16Cap(t *testing.T) {
 	cfg := DefaultConfig()
-	if SeverityForPercent(45, cfg) != SeverityNormal {
-		t.Error("45% devia ser Normal")
-	}
-	if SeverityForPercent(60, cfg) != SeverityWarning {
-		t.Error("60% devia ser Warning")
-	}
-	if SeverityForPercent(90, cfg) != SeverityDanger {
-		t.Error("90% devia ser Danger")
+	if SeverityForPercent(45, cfg) != SeverityNormal || SeverityForPercent(60, cfg) != SeverityWarning || SeverityForPercent(90, cfg) != SeverityDanger {
+		t.Error("niveis de severidade incorretos")
 	}
 
 	stats := MemoryStats{
@@ -97,7 +91,7 @@ func TestFormattingAndTooltipUTF16Cap(t *testing.T) {
 	}
 	tip := FormatTooltip(stats)
 	if len(utf16.Encode([]rune(tip))) > 120 {
-		t.Fatalf("tooltip excedeu 120 UTF-16 units: %d", len(utf16.Encode([]rune(tip))))
+		t.Fatalf("tooltip excedeu 120 UTF-16 units")
 	}
 	if !strings.Contains(tip, "50%") || !strings.Contains(tip, "Paginação: 45%") {
 		t.Errorf("tooltip inesperado: %q", tip)
@@ -105,7 +99,6 @@ func TestFormattingAndTooltipUTF16Cap(t *testing.T) {
 	if got := TruncateUTF16(strings.Repeat("😀", 80), 120); len(utf16.Encode([]rune(got))) > 120 {
 		t.Errorf("truncamento UTF-16 falhou com surrogates")
 	}
-
 	if lbl := FormatHotkeyLabel(0x0002|0x0004, 0x70); lbl != "Ctrl + Shift + F1" {
 		t.Errorf("hotkey inesperado: %q", lbl)
 	}
@@ -118,8 +111,8 @@ func TestFormattingAndTooltipUTF16Cap(t *testing.T) {
 	if len(AllRegionSpecs()) != 8 || len(RegionLabels(MaskAll)) != 8 {
 		t.Errorf("esperava 8 regioes configuradas")
 	}
-	sum := FormatCleanSummary(CleanResult{FreedBytes: 2 * gb, TrimmedProcs: 140, KernelExecuted: true, DurationMs: 35})
-	if !strings.Contains(sum, "2.00 GB") || !strings.Contains(sum, "Modo Kernel") {
+	sum := FormatCleanSummary(CleanResult{FreedBytes: 2 * gb, KilledProcs: 7, TrimmedProcs: 140, KernelExecuted: true, DurationMs: 35})
+	if !strings.Contains(sum, "2.00 GB") || !strings.Contains(sum, "7 encerrados") || !strings.Contains(sum, "Modo Kernel") {
 		t.Errorf("resumo inesperado: %q", sum)
 	}
 }

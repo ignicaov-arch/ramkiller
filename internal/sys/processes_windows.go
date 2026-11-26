@@ -4,19 +4,21 @@ package sys
 
 import (
 	"fmt"
-	"sort"
+	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
 )
 
 const (
-	th32csSnapProcess      = 0x00000002
-	procQueryLimitedInfo   = 0x1000
-	procVMRead             = 0x0010
-	procSetQuota           = 0x0100
-	invalidHandleValue     = ^uintptr(0)
+	th32csSnapProcess    = 0x00000002
+	procTerminate        = 0x0001
+	procVMRead           = 0x0010
+	procSetQuota         = 0x0100
+	procQueryLimitedInfo = 0x1000
+	invalidHandleValue   = ^uintptr(0)
 )
 
 type processEntry32W struct {
@@ -45,6 +47,8 @@ type processMemCountersEx struct {
 	PeakPagefileUsage          uintptr
 	PrivateUsage               uintptr
 }
+
+type fileTime struct{ Low, High uint32 }
 
 // GetForegroundPID retorna o PID da janela atualmente em foco no Windows.
 func GetForegroundPID() uint32 {
@@ -76,10 +80,13 @@ func enumSnapshotProcesses() ([]processEntry32W, error) {
 	return entries, nil
 }
 
-func readProcMemory(pid uint32) (ws uint64, priv uint64, ok bool) {
+func readProcDetails(pid uint32, wantCmd bool) (ws, priv uint64, cmd string, ok bool) {
 	h, _, _ := procOpenProcess.Call(procQueryLimitedInfo|procVMRead, 0, uintptr(pid))
 	if h == 0 {
-		return 0, 0, false
+		h, _, _ = procOpenProcess.Call(procQueryLimitedInfo, 0, uintptr(pid))
+	}
+	if h == 0 {
+		return 0, 0, "", false
 	}
 	defer procCloseHandle.Call(h)
 
@@ -89,97 +96,74 @@ func readProcMemory(pid uint32) (ws uint64, priv uint64, ok bool) {
 	if r == 0 {
 		r, _, _ = procPsapiGetProcMemInfo.Call(h, uintptr(unsafe.Pointer(&pmc)), uintptr(pmc.Cb))
 	}
-	if r == 0 {
-		return 0, 0, false
+	if r != 0 {
+		ws = uint64(pmc.WorkingSetSize)
+		priv = uint64(pmc.PrivateUsage)
+		ok = true
 	}
-	return uint64(pmc.WorkingSetSize), uint64(pmc.PrivateUsage), true
+	if wantCmd {
+		cmd = ReadProcessCmdLine(h)
+	}
+	return ws, priv, cmd, ok
 }
 
-// ListTopProcesses retorna os maiores consumidores de memoria privada sem encerrar nada.
-func ListTopProcesses(limit int, selfPID uint32, anomalyLimitMB int) ([]domain.ProcessInfo, error) {
-	entries, err := enumSnapshotProcesses()
-	if err != nil {
-		return nil, err
-	}
-	fgPID := GetForegroundPID()
-	list := make([]domain.ProcessInfo, 0, len(entries))
-	for i := range entries {
-		pid := entries[i].ProcessID
-		if pid <= 4 {
-			continue
-		}
-		ws, priv, ok := readProcMemory(pid)
-		if !ok || (ws == 0 && priv == 0) {
-			continue
-		}
-		name := syscall.UTF16ToString(entries[i].ExeFile[:])
-		prot := domain.IsProtectedProcess(name, pid, selfPID, fgPID, false)
-		list = append(list, domain.ProcessInfo{
-			PID:             pid,
-			Name:            name,
-			PrivateBytes:    priv,
-			WorkingSetBytes: ws,
-			Protected:       prot,
-			Anomaly:         domain.IsAnomalyProcess(priv, anomalyLimitMB),
-		})
-	}
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].PrivateBytes > list[j].PrivateBytes
-	})
-	if limit > 0 && len(list) > limit {
-		list = list[:limit]
-	}
-	return list, nil
-}
-
-// TrimProcessWorkingSet recicla paginas inativas de um processo sem fecha-lo.
-func TrimProcessWorkingSet(pid uint32) error {
-	h, _, err := procOpenProcess.Call(procQueryLimitedInfo|procSetQuota, 0, uintptr(pid))
+func readProcCPUTime(pid uint32) (uint64, bool) {
+	h, _, _ := procOpenProcess.Call(procQueryLimitedInfo, 0, uintptr(pid))
 	if h == 0 {
-		return fmt.Errorf("OpenProcess(%d): %w", pid, err)
+		return 0, false
 	}
 	defer procCloseHandle.Call(h)
-
-	r, _, callErr := procK32EmptyWorkingSet.Call(h)
+	var cr, ex, kt, ut fileTime
+	r, _, _ := procGetProcessTimes.Call(h, uintptr(unsafe.Pointer(&cr)), uintptr(unsafe.Pointer(&ex)), uintptr(unsafe.Pointer(&kt)), uintptr(unsafe.Pointer(&ut)))
 	if r == 0 {
-		r, _, callErr = procPsapiEmptyWorkingSet.Call(h)
+		return 0, false
 	}
-	if r == 0 {
-		return fmt.Errorf("EmptyWorkingSet(%d): %w", pid, callErr)
-	}
-	return nil
+	total := (uint64(kt.High)<<32 | uint64(kt.Low)) + (uint64(ut.High)<<32 | uint64(ut.Low))
+	return total, true
 }
 
-// TrimAllSafe aplica reciclagem nao destrutiva em todos os processos nao protegidos.
-func TrimAllSafe(selfPID uint32, protectForeground bool) (trimmed int, skipped int) {
+// CollectProcessSnapshots coleta processos, janelas abertas, CmdLine e carga de CPU.
+func CollectProcessSnapshots() ([]domain.ProcSnapshot, bool, error) {
 	entries, err := enumSnapshotProcesses()
 	if err != nil {
-		return 0, 0
+		return nil, false, err
 	}
-	fgPID := GetForegroundPID()
+	ntSessions := readSessionMapNT()
+	openPIDs, deskOK := EnumOpenWindowPIDs()
+	snaps := make([]domain.ProcSnapshot, 0, len(entries))
+	lsSamples := make(map[uint32]uint64)
+
 	for i := range entries {
 		pid := entries[i].ProcessID
 		name := syscall.UTF16ToString(entries[i].ExeFile[:])
-		if domain.IsProtectedProcess(name, pid, selfPID, fgPID, protectForeground) {
-			skipped++
-			continue
-		}
-		if err := TrimProcessWorkingSet(pid); err == nil {
-			trimmed++
-		} else {
-			skipped++
-		}
-	}
-	return trimmed, skipped
-}
-
-// TrimSelf reduz o working set do proprio processo RamKiller.
-func TrimSelf() {
-	h, _, _ := procGetCurrentProcess.Call()
-	if h != 0 {
-		r, _, _ := procK32EmptyWorkingSet.Call(h)
-		if r == 0 {
-			procPsapiEmptyWorkingSet.Call(h)
+		norm := strings.ToLower(strings.TrimSpace(name))
+		wantCmd := norm == "antigravity.exe" || (strings.HasPrefix(norm, "language_server") && strings.HasSuffix(norm, ".exe"))
+		ws, priv, cmd, _ := readProcDetails(pid, wantCmd)
+		snaps = append(snaps, domain.ProcSnapshot{
+			PID:             pid,
+			ParentPID:       entries[i].ParentProcessID,
+			SessionID:       getSessionID(pid, ntSessions),
+			Name:            name,
+			CmdLine:         cmd,
+			PrivateBytes:    priv,
+			WorkingSetBytes: ws,
+			HasOpenWindow:   openPIDs[pid],
+		})
+		if strings.HasPrefix(norm, "language_server") && strings.HasSuffix(norm, ".exe") {
+			if ct, ok := readProcCPUTime(pid); ok {
+				lsSamples[pid] = ct
+			}
 		}
 	}
+	if len(lsSamples) > 0 {
+		time.Sleep(40 * time.Millisecond)
+		for idx := range snaps {
+			if prev, ok := lsSamples[snaps[idx].PID]; ok {
+				if cur, ok2 := readProcCPUTime(snaps[idx].PID); ok2 && cur > prev {
+					snaps[idx].CPUBusy = true
+				}
+			}
+		}
+	}
+	return snaps, deskOK, nil
 }

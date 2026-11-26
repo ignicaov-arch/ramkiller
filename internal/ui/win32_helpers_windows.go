@@ -51,7 +51,8 @@ var (
 	procFindWindowW            = sys.User32.NewProc("FindWindowW")
 	procIsWindowVisible        = sys.User32.NewProc("IsWindowVisible")
 	procAdjustWindowRectExForDpi = sys.User32.NewProc("AdjustWindowRectExForDpi")
-	procDwmSetWindowAttribute  = sys.Dwmapi.NewProc("DwmSetWindowAttribute")
+	procDestroyWindow            = sys.User32.NewProc("DestroyWindow")
+	procDwmSetWindowAttribute    = sys.Dwmapi.NewProc("DwmSetWindowAttribute")
 	procChooseColorW           = sys.Comdlg32.NewProc("ChooseColorW")
 	procGetModuleHandleW       = sys.Kernel32.NewProc("GetModuleHandleW")
 	procCreateMutexW           = sys.Kernel32.NewProc("CreateMutexW")
@@ -162,8 +163,8 @@ func drawCheckbox(c *Canvas, id string, x, y int, checked bool, label string, ho
 	if checked {
 		c.DrawCheckmark(x, y+2, boxSize, ColorBgBase)
 	}
-	c.DrawText(label, FontUI, 13, false, ColorTextPrimary, RECT{int32(x + 24), int32(y), int32(x + 380), int32(y + 22)}, dtLeft|dtVCenter|dtSingleLine)
-	return HitRegion{ID: id, Rect: RECT{int32(x), int32(y), int32(x + 360), int32(y + 22)}}
+	c.DrawText(label, FontUI, 13, false, ColorTextPrimary, RECT{int32(x + 24), int32(y), int32(x + 440), int32(y + 22)}, dtLeft|dtVCenter|dtSingleLine)
+	return HitRegion{ID: id, Rect: RECT{int32(x), int32(y), int32(x + 440), int32(y + 22)}}
 }
 
 func drawStepper(c *Canvas, idPrefix string, x, y int, value int, suffix string, hoverID string) []HitRegion {

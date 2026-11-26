@@ -28,7 +28,7 @@ func resolveTrayColors(percent int, cfg domain.Config) (bg uint32, txt uint32, b
 			bg = RGBToARGB(accent, 255)
 			transparent = false
 		} else {
-			bg = RGBToARGB(cfg.ColorBg, 255)
+			bg = ColorBgCard
 			txt = RGBToARGB(accent, 255)
 		}
 	} else {

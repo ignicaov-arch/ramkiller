@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"unicode"
 	"unsafe"
+
+	"github.com/ignicaov-arch/ramkiller/internal/domain"
 )
 
 const (
@@ -19,9 +21,10 @@ const (
 	regSZ           = 1
 	errFileNotFound = 2
 
-	runSubKey    = `Software\Microsoft\Windows\CurrentVersion\Run`
-	runValueName = "RamKiller"
-	skipUACTask  = "RamKiller_SkipUAC"
+	runSubKey     = `Software\Microsoft\Windows\CurrentVersion\Run`
+	runValueName  = "RamKiller"
+	skipUACTask   = "RamKiller_AutoStart"
+	legacyUACTask = "RamKiller_SkipUAC"
 )
 
 func hasControlChars(s string) bool {
@@ -44,71 +47,37 @@ func validatedExePath() (string, error) {
 	return exe, nil
 }
 
-// IsAutorunEnabled checks whether RamKiller is registered in HKCU Run.
+// IsAutorunEnabled verifica se o RamKiller esta registrado no HKCU Run.
 func IsAutorunEnabled() bool {
-	subKeyPtr, err := syscall.UTF16PtrFromString(runSubKey)
-	if err != nil {
-		return false
-	}
-	valPtr, err := syscall.UTF16PtrFromString(runValueName)
-	if err != nil {
-		return false
-	}
-
+	subKeyPtr, _ := syscall.UTF16PtrFromString(runSubKey)
+	valPtr, _ := syscall.UTF16PtrFromString(runValueName)
 	var hKey uintptr
-	r, _, _ := procRegOpenKeyExW.Call(
-		hkeyCurrentUser,
-		uintptr(unsafe.Pointer(subKeyPtr)),
-		0,
-		keyRead,
-		uintptr(unsafe.Pointer(&hKey)),
-	)
+	r, _, _ := procRegOpenKeyExW.Call(hkeyCurrentUser, uintptr(unsafe.Pointer(subKeyPtr)), 0, keyRead, uintptr(unsafe.Pointer(&hKey)))
 	if r != 0 || hKey == 0 {
 		return false
 	}
 	defer procRegCloseKey.Call(hKey)
 
-	var valType uint32
-	var dataSize uint32
-	r, _, _ = procRegQueryValueExW.Call(
-		hKey,
-		uintptr(unsafe.Pointer(valPtr)),
-		0,
-		uintptr(unsafe.Pointer(&valType)),
-		0,
-		uintptr(unsafe.Pointer(&dataSize)),
-	)
+	var valType, dataSize uint32
+	r, _, _ = procRegQueryValueExW.Call(hKey, uintptr(unsafe.Pointer(valPtr)), 0, uintptr(unsafe.Pointer(&valType)), 0, uintptr(unsafe.Pointer(&dataSize)))
 	return r == 0 && valType == regSZ && dataSize > 0
 }
 
-// SetAutorun registers or removes RamKiller from HKCU\...\Run.
+// SetAutorun registra ou remove o RamKiller em HKCU\...\Run com --boot.
 func SetAutorun(enabled bool, minimized bool) error {
-	subKeyPtr, err := syscall.UTF16PtrFromString(runSubKey)
-	if err != nil {
-		return err
-	}
-	valPtr, err := syscall.UTF16PtrFromString(runValueName)
-	if err != nil {
-		return err
-	}
-
+	subKeyPtr, _ := syscall.UTF16PtrFromString(runSubKey)
+	valPtr, _ := syscall.UTF16PtrFromString(runValueName)
 	var hKey uintptr
-	r, _, _ := procRegOpenKeyExW.Call(
-		hkeyCurrentUser,
-		uintptr(unsafe.Pointer(subKeyPtr)),
-		0,
-		keySetValue,
-		uintptr(unsafe.Pointer(&hKey)),
-	)
+	r, _, _ := procRegOpenKeyExW.Call(hkeyCurrentUser, uintptr(unsafe.Pointer(subKeyPtr)), 0, keySetValue, uintptr(unsafe.Pointer(&hKey)))
 	if r != 0 || hKey == 0 {
-		return fmt.Errorf("RegOpenKeyExW failed with code %d", r)
+		return fmt.Errorf("RegOpenKeyExW falhou (%d)", r)
 	}
 	defer procRegCloseKey.Call(hKey)
 
 	if !enabled {
 		r, _, _ = procRegDeleteValueW.Call(hKey, uintptr(unsafe.Pointer(valPtr)))
 		if r != 0 && r != errFileNotFound {
-			return fmt.Errorf("RegDeleteValueW failed with code %d", r)
+			return fmt.Errorf("RegDeleteValueW falhou (%d)", r)
 		}
 		return nil
 	}
@@ -117,25 +86,17 @@ func SetAutorun(enabled bool, minimized bool) error {
 	if err != nil {
 		return err
 	}
-	cmd := fmt.Sprintf(`"%s"`, exe)
+	cmd := fmt.Sprintf(`"%s" --boot`, exe)
 	if minimized {
-		cmd += " --minimized"
+		cmd = fmt.Sprintf(`"%s" --minimized --boot`, exe)
 	}
 	u16, err := syscall.UTF16FromString(cmd)
 	if err != nil {
 		return err
 	}
-	byteLen := uint32(len(u16) * 2)
-	r, _, _ = procRegSetValueExW.Call(
-		hKey,
-		uintptr(unsafe.Pointer(valPtr)),
-		0,
-		regSZ,
-		uintptr(unsafe.Pointer(&u16[0])),
-		uintptr(byteLen),
-	)
+	r, _, _ = procRegSetValueExW.Call(hKey, uintptr(unsafe.Pointer(valPtr)), 0, regSZ, uintptr(unsafe.Pointer(&u16[0])), uintptr(len(u16)*2))
 	if r != 0 {
-		return fmt.Errorf("RegSetValueExW failed with code %d", r)
+		return fmt.Errorf("RegSetValueExW falhou (%d)", r)
 	}
 	return nil
 }
@@ -147,43 +108,43 @@ func runSchtasks(args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
-// IsSkipUACTaskEnabled reports whether the RamKiller_SkipUAC scheduled task exists.
+// IsSkipUACTaskEnabled verifica se a tarefa agendada de logon elevado existe.
 func IsSkipUACTaskEnabled() bool {
 	_, err := runSchtasks("/Query", "/TN", skipUACTask)
 	return err == nil
 }
 
-// SetSkipUACTask creates or removes the highest-privilege logon task to skip UAC prompts.
+// SetSkipUACTask cria ou remove a tarefa agendada de inicializacao elevada no logon.
 func SetSkipUACTask(enabled bool) error {
+	_, _ = runSchtasks("/Delete", "/TN", legacyUACTask, "/F")
 	if !enabled {
 		out, err := runSchtasks("/Delete", "/TN", skipUACTask, "/F")
 		if err != nil && IsSkipUACTaskEnabled() {
-			return fmt.Errorf("schtasks delete failed: %v (%s)", err, out)
+			return fmt.Errorf("schtasks delete falhou: %v (%s)", err, out)
 		}
 		return nil
 	}
-
 	exe, err := validatedExePath()
 	if err != nil {
 		return err
 	}
-	tr := fmt.Sprintf(`"%s"`, exe)
-	out, err := runSchtasks(
-		"/Create",
-		"/TN", skipUACTask,
-		"/TR", tr,
-		"/SC", "ONLOGON",
-		"/RL", "HIGHEST",
-		"/F",
-	)
+	tr := fmt.Sprintf(`"%s" --minimized --boot`, exe)
+	out, err := runSchtasks("/Create", "/TN", skipUACTask, "/TR", tr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F")
 	if err != nil {
-		return fmt.Errorf("schtasks create failed: %v (%s)", err, out)
+		return fmt.Errorf("schtasks create falhou: %v (%s)", err, out)
 	}
 	return nil
 }
 
-// OpenTaskManager launches Windows Task Manager from System32.
+// SyncStartupRegistration sincroniza Run no registro e tarefa agendada com a configuracao.
+func SyncStartupRegistration(cfg domain.Config) {
+	_ = SetAutorun(cfg.LoadOnStartup, cfg.StartMinimized)
+	if IsElevated() {
+		_ = SetSkipUACTask(cfg.LoadOnStartup && cfg.SkipUAC)
+	}
+}
+
+// OpenTaskManager abre o Gerenciador de Tarefas do Windows a partir de System32.
 func OpenTaskManager() error {
-	cmd := exec.Command(System32Path("Taskmgr.exe"))
-	return cmd.Start()
+	return exec.Command(System32Path("Taskmgr.exe")).Start()
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
@@ -22,7 +23,7 @@ func attachParentConsole() {
 }
 
 func handleCLI(args []string) (int, bool) {
-	var wantStatus, wantClean, wantFull, wantJSON, wantHelp bool
+	var wantStatus, wantClean, wantFull, wantAudit, wantPause, wantJSON, wantHelp bool
 	var renderQADir string
 
 	for _, raw := range args {
@@ -34,6 +35,10 @@ func handleCLI(args []string) (int, bool) {
 			wantClean = true
 		case a == "--clean-full":
 			wantFull = true
+		case a == "--audit-procs":
+			wantAudit = true
+		case a == "--pause-until-reboot":
+			wantPause = true
 		case a == "--json":
 			wantJSON = true
 		case a == "--help" || a == "-h":
@@ -43,7 +48,7 @@ func handleCLI(args []string) (int, bool) {
 		}
 	}
 
-	if !wantStatus && !wantClean && !wantFull && !wantHelp && renderQADir == "" {
+	if !wantStatus && !wantClean && !wantFull && !wantAudit && !wantPause && !wantHelp && renderQADir == "" {
 		return 0, false
 	}
 
@@ -51,6 +56,9 @@ func handleCLI(args []string) (int, bool) {
 	if wantHelp {
 		printHelp()
 		return 0, true
+	}
+	if wantPause {
+		return runPauseCommand(wantJSON), true
 	}
 	if renderQADir != "" {
 		if err := ui.RenderQAScreenshots(renderQADir); err != nil {
@@ -62,6 +70,9 @@ func handleCLI(args []string) (int, bool) {
 	}
 
 	cfg, _ := sys.LoadConfig()
+	if wantAudit {
+		return runAuditCommand(cfg, wantJSON), true
+	}
 	if wantClean || wantFull {
 		mask := cfg.CleanMask
 		if wantFull {
@@ -87,18 +98,68 @@ func handleCLI(args []string) (int, bool) {
 	}
 	printOutput(stats, wantJSON, func() {
 		fmt.Printf("RamKiller Status | Fisica: %d%% (%s/%s) | Paginacao: %d%% | Cache: %d%%\n",
-			stats.Physical.Percent,
-			domain.FormatBytes(stats.Physical.UsedBytes),
-			domain.FormatBytes(stats.Physical.TotalBytes),
-			stats.Pagefile.Percent,
-			stats.SystemCache.Percent,
-		)
+			stats.Physical.Percent, domain.FormatBytes(stats.Physical.UsedBytes),
+			domain.FormatBytes(stats.Physical.TotalBytes), stats.Pagefile.Percent, stats.SystemCache.Percent)
 		for _, p := range stats.TopProcesses {
 			fmt.Printf("  - %-26s PID %-6d Privado: %-9s WS: %s\n",
 				p.Name, p.PID, domain.FormatBytes(p.PrivateBytes), domain.FormatBytes(p.WorkingSetBytes))
 		}
 	})
 	return 0, true
+}
+
+func runPauseCommand(asJSON bool) int {
+	err := sys.PauseUntilReboot()
+	out := struct {
+		Paused bool   `json:"pausedUntilReboot"`
+		BootID int64  `json:"bootId"`
+		Error  string `json:"error,omitempty"`
+	}{Paused: err == nil, BootID: sys.GetBootSessionID()}
+	if err != nil {
+		out.Error = err.Error()
+		printOutput(out, asJSON, func() { fmt.Fprintf(os.Stderr, "Erro ao pausar: %v\n", err) })
+		return 1
+	}
+	printOutput(out, asJSON, func() { fmt.Println("RamKiller encerrado e pausado até reiniciar o PC.") })
+	return 0
+}
+
+type auditEntry struct {
+	PID        uint32            `json:"pid"`
+	Name       string            `json:"name"`
+	Action     domain.ProcAction `json:"action"`
+	Reason     string            `json:"reason"`
+	OpenWindow bool              `json:"openWindow"`
+	PrivateMB  uint64            `json:"privateMb"`
+}
+
+func runAuditCommand(cfg domain.Config, asJSON bool) int {
+	snaps, deskOK, err := sys.CollectProcessSnapshots()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro na auditoria de processos: %v\n", err)
+		return 1
+	}
+	decs := domain.ClassifyProcesses(snaps, uint32(os.Getpid()), deskOK, cfg.AnomalyLimitMB)
+	var rows []auditEntry
+	for _, s := range snaps {
+		if s.SessionID == 0 || s.PID <= 4 {
+			continue
+		}
+		d := decs[s.PID]
+		rows = append(rows, auditEntry{PID: s.PID, Name: s.Name, Action: d.Action, Reason: d.Reason, OpenWindow: s.HasOpenWindow, PrivateMB: s.PrivateBytes / (1024 * 1024)})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].PrivateMB > rows[j].PrivateMB })
+	payload := struct {
+		DesktopEnumOK bool         `json:"desktopEnumOk"`
+		Processes     []auditEntry `json:"processes"`
+	}{DesktopEnumOK: deskOK, Processes: rows}
+	printOutput(payload, asJSON, func() {
+		fmt.Printf("DesktopEnumOK=%t | Processos usuario=%d\n", deskOK, len(rows))
+		for _, r := range rows {
+			fmt.Printf("  %-26s PID %-6d %-10s %4d MB  [%s]\n", r.Name, r.PID, r.Action, r.PrivateMB, r.Reason)
+		}
+	})
+	return 0
 }
 
 func printOutput(v any, asJSON bool, textFn func()) {
@@ -113,11 +174,5 @@ func printOutput(v any, asJSON bool, textFn func()) {
 
 func printHelp() {
 	fmt.Println("RamKiller - Limpador nativo de RAM para Windows")
-	fmt.Println("Uso:")
-	fmt.Println("  ramkiller.exe              Inicia na bandeja com painel")
-	fmt.Println("  ramkiller.exe --minimized  Inicia oculto na bandeja")
-	fmt.Println("  ramkiller.exe --status     Exibe telemetria atual e Top 5 processos")
-	fmt.Println("  ramkiller.exe --clean      Executa limpeza segura (Working Set + mascaras padrao)")
-	fmt.Println("  ramkiller.exe --clean-full Executa limpeza profunda em todas as regioes")
-	fmt.Println("  ramkiller.exe --json       Formata saida CLI em JSON")
+	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --clean-full | --pause-until-reboot | --guardian | --json")
 }

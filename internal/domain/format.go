@@ -47,7 +47,6 @@ func TruncateUTF16(s string, maxUnits int) string {
 		return s
 	}
 	cut := encoded[:maxUnits]
-	// Evita cortar par substituto UTF-16 ao meio.
 	if cut[len(cut)-1] >= 0xD800 && cut[len(cut)-1] <= 0xDBFF {
 		cut = cut[:len(cut)-1]
 	}
@@ -74,10 +73,14 @@ func FormatCleanSummary(res CleanResult) string {
 	if res.KernelExecuted {
 		mode = "Modo Kernel"
 	}
-	if res.FreedBytes == 0 {
-		return fmt.Sprintf("Reciclagem concluída (%s · %d processos · %d ms)", mode, res.TrimmedProcs, res.DurationMs)
+	procStats := fmt.Sprintf("%d reciclados", res.TrimmedProcs)
+	if res.KilledProcs > 0 {
+		procStats = fmt.Sprintf("%d encerrados · %d reciclados", res.KilledProcs, res.TrimmedProcs)
 	}
-	return fmt.Sprintf("+%s liberados (%s · %d processos · %d ms)", FormatBytes(res.FreedBytes), mode, res.TrimmedProcs, res.DurationMs)
+	if res.FreedBytes == 0 {
+		return fmt.Sprintf("Reciclagem concluída (%s · %s · %d ms)", mode, procStats, res.DurationMs)
+	}
+	return fmt.Sprintf("+%s liberados (%s · %s · %d ms)", FormatBytes(res.FreedBytes), mode, procStats, res.DurationMs)
 }
 
 // FormatHotkeyLabel formata modificadores Win32 e codigo VK para exibicao humana.

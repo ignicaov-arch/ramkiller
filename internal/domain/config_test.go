@@ -9,11 +9,14 @@ import (
 
 func TestDefaultConfigAndSanitizeBounds(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.AutoCleanThresholdPct != 80 || cfg.WarningLevelPct != 60 || cfg.DangerLevelPct != 90 {
-		t.Fatalf("defaults inesperados: %+v", cfg)
+	if cfg.ConfigVersion != CurrentConfigVersion || cfg.CleanMask != MaskAll {
+		t.Fatalf("defaults v2 inesperados: ver=%d mask=%v", cfg.ConfigVersion, cfg.CleanMask)
 	}
-	if cfg.CleanMask != MaskDefault {
-		t.Fatalf("CleanMask padrao incorreta: %v", cfg.CleanMask)
+	if !cfg.LoadOnStartup || !cfg.SelfHeal || !cfg.KillBackgroundApps || !cfg.AllowStandbyInAuto || !cfg.SkipUAC {
+		t.Fatalf("flags principais v2 deveriam iniciar ativas: %+v", cfg)
+	}
+	if cfg.AutoCleanThresholdPct != 80 || cfg.WarningLevelPct != 60 || cfg.DangerLevelPct != 90 {
+		t.Fatalf("limiares padrao inesperados: %+v", cfg)
 	}
 
 	dirty := Config{
@@ -31,8 +34,8 @@ func TestDefaultConfigAndSanitizeBounds(t *testing.T) {
 	}
 	dirty.Sanitize()
 
-	if dirty.CleanMask != MaskDefault {
-		t.Errorf("esperava fallback MaskDefault, obteve %v", dirty.CleanMask)
+	if dirty.CleanMask != RegionWorkingSet {
+		t.Errorf("esperava fallback RegionWorkingSet, obteve %v", dirty.CleanMask)
 	}
 	if dirty.AutoCleanThresholdPct != 10 || dirty.AutoCleanIntervalMin != 1440 {
 		t.Errorf("limites nao aplicados: thr=%d int=%d", dirty.AutoCleanThresholdPct, dirty.AutoCleanIntervalMin)
@@ -54,21 +57,30 @@ func TestDefaultConfigAndSanitizeBounds(t *testing.T) {
 	}
 }
 
-func TestParseConfigJSONHostileInputs(t *testing.T) {
+func TestParseConfigJSONHostileInputsAndV1Upgrade(t *testing.T) {
 	valid, err := json.Marshal(DefaultConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 	parsed, err := ParseConfigJSON(valid)
-	if err != nil || parsed.AutoCleanThresholdPct != 80 {
+	if err != nil || parsed.AutoCleanThresholdPct != 80 || parsed.CleanMask != MaskAll {
 		t.Fatalf("falhou ao ler JSON valido: %v", err)
+	}
+
+	v1Legacy := []byte(`{"cleanMask":231,"loadOnStartup":false,"allowStandbyInAuto":false}`)
+	upgraded, err := ParseConfigJSON(v1Legacy)
+	if err != nil {
+		t.Fatalf("falhou ao migrar v1: %v", err)
+	}
+	if upgraded.ConfigVersion != CurrentConfigVersion || upgraded.CleanMask != MaskAll || !upgraded.LoadOnStartup || !upgraded.AllowStandbyInAuto {
+		t.Fatalf("upgrade v1->v2 incompleto: %+v", upgraded)
 	}
 
 	if _, err := ParseConfigJSON(nil); err == nil {
 		t.Error("esperava erro para JSON vazio")
 	}
 	if _, err := ParseConfigJSON([]byte(`{"unknownField":true}`)); err == nil {
-		t.Error("esperava erro para campo desconhecido (DisallowUnknownFields)")
+		t.Error("esperava erro para campo desconhecido")
 	}
 	if _, err := ParseConfigJSON([]byte(`{"alwaysOnTop":true}{"extra":1}`)); err == nil {
 		t.Error("esperava erro para trailing JSON")

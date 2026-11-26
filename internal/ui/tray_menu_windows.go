@@ -11,11 +11,13 @@ import (
 )
 
 const (
-	cmdTrayToggle   = 1001
-	cmdTrayClean    = 1002
-	cmdTrayDeep     = 1003
-	cmdTraySettings = 1004
-	cmdTrayExit     = 1005
+	cmdTrayToggle       = 1001
+	cmdTrayClean        = 1002
+	cmdTrayDeep         = 1003
+	cmdTraySettings     = 1004
+	cmdTrayExit         = 1005
+	cmdTrayToggleKillBg = 1006
+	cmdTrayPauseReboot  = 1007
 
 	cmdRegionBase   = 1100
 	cmdThreshOff    = 1200
@@ -26,15 +28,15 @@ const (
 
 var (
 	thresholdOptions = []int{50, 60, 70, 75, 80, 85, 90, 95}
-	intervalOptions  = []int{5, 10, 15, 30, 60, 120}
+	intervalOptions  = []int{1, 5, 10, 15, 30, 60, 120}
 
-	procCreatePopupMenu   = sys.User32.NewProc("CreatePopupMenu")
-	procAppendMenuW       = sys.User32.NewProc("AppendMenuW")
-	procTrackPopupMenuEx  = sys.User32.NewProc("TrackPopupMenuEx")
-	procDestroyMenu       = sys.User32.NewProc("DestroyMenu")
-	procGetCursorPos      = sys.User32.NewProc("GetCursorPos")
-	procSetForegroundWnd  = sys.User32.NewProc("SetForegroundWindow")
-	procPostMessageW      = sys.User32.NewProc("PostMessageW")
+	procCreatePopupMenu  = sys.User32.NewProc("CreatePopupMenu")
+	procAppendMenuW      = sys.User32.NewProc("AppendMenuW")
+	procTrackPopupMenuEx = sys.User32.NewProc("TrackPopupMenuEx")
+	procDestroyMenu      = sys.User32.NewProc("DestroyMenu")
+	procGetCursorPos     = sys.User32.NewProc("GetCursorPos")
+	procSetForegroundWnd = sys.User32.NewProc("SetForegroundWindow")
+	procPostMessageW     = sys.User32.NewProc("PostMessageW")
 )
 
 func addMenuItem(hMenu, flags, id uintptr, label string) {
@@ -94,7 +96,7 @@ func buildIntervalSubmenu(cfg domain.Config) uintptr {
 	return sub
 }
 
-// ShowTrayContextMenu exibe o menu de contexto enxuto e 100% em PT-BR.
+// ShowTrayContextMenu exibe o menu de contexto completo em PT-BR com todas as acoes.
 func ShowTrayContextMenu(hwnd uintptr, cfg domain.Config) uint32 {
 	hMenu, _, _ := procCreatePopupMenu.Call()
 	if hMenu == 0 {
@@ -112,24 +114,23 @@ func ShowTrayContextMenu(hwnd uintptr, cfg domain.Config) uint32 {
 	addMenuItem(hMenu, MF_STRING, cmdTrayDeep, "Limpeza Profunda (Kernel)")
 	addMenuSep(hMenu)
 	addMenuItem(hMenu, MF_POPUP, subReg, "Áreas de Limpeza")
+	killFlags := uintptr(MF_STRING)
+	if cfg.KillBackgroundApps {
+		killFlags |= MF_CHECKED
+	}
+	addMenuItem(hMenu, killFlags, cmdTrayToggleKillBg, "Matar 2º Plano ao Limpar")
 	addMenuItem(hMenu, MF_POPUP, subThr, "Limpar Acima de")
 	addMenuItem(hMenu, MF_POPUP, subInt, "Limpar a Cada")
 	addMenuSep(hMenu)
 	addMenuItem(hMenu, MF_STRING, cmdTraySettings, "Configurações...")
 	addMenuSep(hMenu)
+	addMenuItem(hMenu, MF_STRING, cmdTrayPauseReboot, "Encerrar até Reiniciar o PC")
 	addMenuItem(hMenu, MF_STRING, cmdTrayExit, "Sair")
 
 	var pt POINT
 	procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
 	procSetForegroundWnd.Call(hwnd)
-	cmd, _, _ := procTrackPopupMenuEx.Call(
-		hMenu,
-		TPM_RIGHTBUTTON|TPM_RETURNCMD,
-		uintptr(pt.X),
-		uintptr(pt.Y),
-		hwnd,
-		0,
-	)
+	cmd, _, _ := procTrackPopupMenuEx.Call(hMenu, TPM_RIGHTBUTTON|TPM_RETURNCMD, uintptr(pt.X), uintptr(pt.Y), hwnd, 0)
 	procPostMessageW.Call(hwnd, 0, 0, 0)
 	return uint32(cmd)
 }

@@ -28,6 +28,11 @@ func (a *AppController) forceTrayRefresh() {
 }
 
 func (a *AppController) onTick() {
+	if sys.IsPausedForCurrentBoot() {
+		a.shutdownApp(true)
+		return
+	}
+	a.tickCount++
 	a.refreshStats()
 	cfg := a.getConfig()
 	pct := a.stats.Physical.Percent
@@ -41,6 +46,10 @@ func (a *AppController) onTick() {
 	}
 	a.tray.Update(newIcon, domain.FormatTooltip(a.stats))
 
+	if cfg.SelfHeal && a.tickCount%3 == 0 && !sys.IsPausedForCurrentBoot() {
+		_ = sys.EnsureGuardianRunning()
+	}
+
 	if vis, _, _ := procIsWindowVisible.Call(a.mainHWND); vis != 0 {
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	}
@@ -52,7 +61,7 @@ func (a *AppController) onTick() {
 func (a *AppController) triggerClean(src domain.CleanSource, overrideMask domain.CleanRegion) {
 	cfg := a.getConfig()
 	if src == domain.SourceManual && cfg.ConfirmClean {
-		if !ConfirmBox(a.mainHWND, "Confirmar Limpeza", "Deseja executar a reciclagem de memória RAM agora?") {
+		if !ConfirmBox(a.mainHWND, "Confirmar Limpeza", "Deseja executar a reciclagem e limpeza de RAM agora?") {
 			return
 		}
 	}
@@ -102,4 +111,22 @@ func (a *AppController) toggleMainWindow() {
 		return
 	}
 	a.showMainWindow()
+}
+
+func (a *AppController) shutdownApp(pauseUntilReboot bool) {
+	procKillTimer.Call(a.mainHWND, 1)
+	procUnregisterHotKey.Call(a.mainHWND, 1)
+	if pauseUntilReboot {
+		_ = sys.PauseUntilReboot()
+	} else {
+		sys.SignalGuardianStop()
+	}
+	if a.tray != nil {
+		a.tray.Destroy()
+	}
+	if a.settingsHWND != 0 {
+		procDestroyWindow.Call(a.settingsHWND)
+		a.settingsHWND = 0
+	}
+	procDestroyWindow.Call(a.mainHWND)
 }

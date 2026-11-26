@@ -8,19 +8,23 @@ import (
 	"unsafe"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
+	"github.com/ignicaov-arch/ramkiller/internal/sys"
 )
 
 const settingsClassName = "RamKillerSettingsClass"
 
 func (a *AppController) openSettingsWindow() {
 	if a.settingsHWND != 0 {
+		ApplyTopMost(a.settingsHWND, a.getConfig().AlwaysOnTop)
 		procShowWindow.Call(a.settingsHWND, SW_RESTORE)
 		procSetForegroundWnd.Call(a.settingsHWND)
+		procInvalidateRect.Call(a.settingsHWND, 0, 0)
 		return
 	}
 	hwnd := createFixedDarkWindow(settingsClassName, "Configurações · RamKiller", settingsWinWidth, settingsWinHeight, syscall.NewCallback(a.settingsWndProc), false)
 	if hwnd != 0 {
 		a.settingsHWND = hwnd
+		ApplyTopMost(hwnd, a.getConfig().AlwaysOnTop)
 		procShowWindow.Call(hwnd, SW_SHOWNORMAL)
 		procUpdateWindow.Call(hwnd)
 	}
@@ -87,20 +91,17 @@ func (a *AppController) handleSettingsClick(hwnd uintptr, hit HitRegion) {
 	}
 	if hit.ID == "settings_reset" {
 		if ConfirmBox(hwnd, "Restaurar Padrão", "Deseja restaurar todas as configurações do RamKiller para o padrão?") {
-			a.applyNewConfig(domain.DefaultConfig())
+			def := domain.DefaultConfig()
+			a.applyNewConfig(def)
+			sys.SyncStartupRegistration(def)
+			sys.SyncGuardianState(def)
 		}
 		return
 	}
 
 	cfg := a.getConfig()
 	if strings.HasPrefix(hit.ID, "reg_") {
-		flag := domain.CleanRegion(hit.Arg)
-		if flag&domain.MaskFreezeRisk != 0 && cfg.CleanMask&flag == 0 {
-			if !ConfirmBox(hwnd, "Aviso de Estabilidade", "Ativar Lista de Espera* ou Páginas Modificadas* pode causar micro-travamento durante a limpeza manual. Deseja ativar?") {
-				return
-			}
-		}
-		cfg.CleanMask ^= flag
+		cfg.CleanMask ^= domain.CleanRegion(hit.Arg)
 		a.applyNewConfig(cfg)
 		return
 	}

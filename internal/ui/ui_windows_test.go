@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
+	"github.com/ignicaov-arch/ramkiller/internal/sys"
 )
 
 func TestTrayIconCreationAndCleanup(t *testing.T) {
@@ -26,7 +27,86 @@ func TestTrayIconCreationAndCleanup(t *testing.T) {
 	}
 }
 
-func TestRenderQAScreenshotsValidPNGs(t *testing.T) {
+func TestAllSettingsControlsAndSteppersWork(t *testing.T) {
+	ctrl := &AppController{engine: sys.NewEngine()}
+	cfg := domain.DefaultConfig()
+
+	boolToggles := []struct {
+		id  string
+		get func(*domain.Config) bool
+	}{
+		{"chk_always_top", func(c *domain.Config) bool { return c.AlwaysOnTop }},
+		{"chk_autorun", func(c *domain.Config) bool { return c.LoadOnStartup }},
+		{"chk_self_heal", func(c *domain.Config) bool { return c.SelfHeal }},
+		{"chk_minimized", func(c *domain.Config) bool { return c.StartMinimized }},
+		{"chk_confirm", func(c *domain.Config) bool { return c.ConfirmClean }},
+		{"chk_kill_bg", func(c *domain.Config) bool { return c.KillBackgroundApps }},
+		{"chk_allow_standby_auto", func(c *domain.Config) bool { return c.AllowStandbyInAuto }},
+		{"chk_auto_pct", func(c *domain.Config) bool { return c.AutoCleanThresholdEnabled }},
+		{"chk_auto_min", func(c *domain.Config) bool { return c.AutoCleanIntervalEnabled }},
+		{"chk_hotkey", func(c *domain.Config) bool { return c.HotkeyEnabled }},
+		{"chk_tray_transp", func(c *domain.Config) bool { return c.TrayTransparent }},
+		{"chk_tray_border", func(c *domain.Config) bool { return c.TrayShowBorder }},
+		{"chk_tray_round", func(c *domain.Config) bool { return c.TrayRoundCorners }},
+		{"chk_tray_chgbg", func(c *domain.Config) bool { return c.TrayChangeBg }},
+		{"chk_tray_aa", func(c *domain.Config) bool { return c.TrayAntialias }},
+		{"chk_balloon", func(c *domain.Config) bool { return c.ShowBalloonResult }},
+		{"chk_sound", func(c *domain.Config) bool { return c.NotificationSound }},
+		{"chk_log", func(c *domain.Config) bool { return c.LogResults }},
+	}
+
+	for _, tc := range boolToggles {
+		before := tc.get(&cfg)
+		ctrl.applySettingsMutation(0, tc.id, &cfg)
+		if tc.get(&cfg) == before {
+			t.Errorf("checkbox %s nao alternou valor", tc.id)
+		}
+	}
+
+	ctrl.applySettingsMutation(0, "auto_pct_dec", &cfg)
+	ctrl.applySettingsMutation(0, "auto_pct_inc", &cfg)
+	ctrl.applySettingsMutation(0, "auto_min_dec", &cfg)
+	if cfg.AutoCleanIntervalMin != 10 {
+		t.Errorf("auto_min_dec esperado 10, obteve %d", cfg.AutoCleanIntervalMin)
+	}
+	cfg.AutoCleanIntervalMin = 5
+	ctrl.applySettingsMutation(0, "auto_min_dec", &cfg)
+	if cfg.AutoCleanIntervalMin != 1 {
+		t.Errorf("step de 5 para 1 falhou: %d", cfg.AutoCleanIntervalMin)
+	}
+	ctrl.applySettingsMutation(0, "auto_min_inc", &cfg)
+	if cfg.AutoCleanIntervalMin != 5 {
+		t.Errorf("step de 1 para 5 falhou: %d", cfg.AutoCleanIntervalMin)
+	}
+
+	ctrl.applySettingsMutation(0, "anom_mb_inc", &cfg)
+	if cfg.AnomalyLimitMB != 2816 {
+		t.Errorf("anom_mb_inc esperado 2816, obteve %d", cfg.AnomalyLimitMB)
+	}
+	ctrl.applySettingsMutation(0, "font_sz_inc", &cfg)
+	if cfg.TrayFontSize != 11 {
+		t.Errorf("font_sz_inc esperado 11, obteve %d", cfg.TrayFontSize)
+	}
+	ctrl.applySettingsMutation(0, "cycle_hotkey", &cfg)
+	if cfg.HotkeyModifiers != 0x0002 {
+		t.Errorf("cycle_hotkey deveria avancar preset, obteve mods=%d", cfg.HotkeyModifiers)
+	}
+	ctrl.applySettingsMutation(0, "tray_single_act", &cfg)
+	ctrl.applySettingsMutation(0, "tray_middle_act", &cfg)
+	if cfg.TraySingleClick != domain.ActionCleanMemory || cfg.TrayMiddleClick != domain.ActionOpenTaskMgr {
+		t.Errorf("acoes de clique nao avancaram: single=%d mid=%d", cfg.TraySingleClick, cfg.TrayMiddleClick)
+	}
+
+	cfg.WarningLevelPct = 85
+	cfg.DangerLevelPct = 90
+	ctrl.applySettingsMutation(0, "dang_lvl_dec", &cfg)
+	cfg.Sanitize()
+	if cfg.DangerLevelPct != 85 || cfg.WarningLevelPct != 80 {
+		t.Errorf("dang_lvl_dec acoplado falhou: warn=%d dang=%d", cfg.WarningLevelPct, cfg.DangerLevelPct)
+	}
+}
+
+func TestRenderQAScreenshotsAndAllButtonHits(t *testing.T) {
 	outDir := t.TempDir()
 	if err := RenderQAScreenshots(outDir); err != nil {
 		t.Fatalf("RenderQAScreenshots falhou: %v", err)
@@ -51,6 +131,22 @@ func TestRenderQAScreenshotsValidPNGs(t *testing.T) {
 		}
 		if cfgImg.Width != dims[0] || cfgImg.Height != dims[1] {
 			t.Errorf("%s dimensoes %dx%d != esperado %dx%d", name, cfgImg.Width, cfgImg.Height, dims[0], dims[1])
+		}
+	}
+
+	// Confirma botoes obrigatorios no Canvas Principal
+	cfg := domain.DefaultConfig()
+	mc, hits := RenderMainCanvas(domain.MemoryStats{Elevated: true}, cfg, "", "", false)
+	mc.Close()
+	needed := map[string]bool{"open_settings": false, "clean_now": false, "clean_deep": false, "stop_until_reboot": false}
+	for _, h := range hits {
+		if _, ok := needed[h.ID]; ok {
+			needed[h.ID] = true
+		}
+	}
+	for id, found := range needed {
+		if !found {
+			t.Errorf("botao %s ausente nos hits do painel principal", id)
 		}
 	}
 }

@@ -3,7 +3,6 @@
 package ui
 
 import (
-	"os"
 	"strings"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
@@ -16,17 +15,27 @@ func (a *AppController) handleMainClick(hit HitRegion) {
 		a.triggerClean(domain.SourceManual, 0)
 	case hit.ID == "clean_deep":
 		a.triggerClean(domain.SourceManual, domain.MaskAll)
+	case hit.ID == "stop_until_reboot":
+		a.shutdownApp(true)
 	case hit.ID == "open_settings":
 		a.openSettingsWindow()
 	case hit.ID == "elevate_admin":
 		if err := sys.RelaunchAsAdmin("--minimized"); err == nil {
-			procPostMessageW.Call(a.mainHWND, WM_DESTROY, 0, 0)
+			a.shutdownApp(false)
 		}
 	case strings.HasPrefix(hit.ID, "trim_pid_") && hit.Arg > 0:
 		if err := sys.TrimProcessWorkingSet(hit.Arg); err == nil {
 			a.lastSummary = "Working Set do processo reciclado com sucesso."
 		} else {
-			a.lastSummary = "Sem permissão para reciclar este processo (tente Modo Kernel)."
+			a.lastSummary = "Sem permissão para reciclar este processo (use Modo Kernel)."
+		}
+		a.refreshStats()
+		procInvalidateRect.Call(a.mainHWND, 0, 0)
+	case strings.HasPrefix(hit.ID, "kill_pid_") && hit.Arg > 0:
+		if err := sys.TerminateProcessSafe(hit.Arg); err == nil {
+			a.lastSummary = "Processo em segundo plano encerrado."
+		} else {
+			a.lastSummary = "Não foi possível encerrar o processo selecionado."
 		}
 		a.refreshStats()
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
@@ -35,7 +44,7 @@ func (a *AppController) handleMainClick(hit HitRegion) {
 
 func (a *AppController) handleTrayEvent(ev uint32) {
 	switch ev {
-	case WM_LBUTTONUP:
+	case WM_LBUTTONUP, WM_LBUTTONDBLCLK:
 		a.executeTrayAction(a.getConfig().TraySingleClick)
 	case WM_MBUTTONUP:
 		a.executeTrayAction(a.getConfig().TrayMiddleClick)
@@ -66,9 +75,14 @@ func (a *AppController) handleTrayMenuCommand(cmd uint32) {
 		a.triggerClean(domain.SourceManual, domain.MaskAll)
 	case cmd == cmdTraySettings:
 		a.openSettingsWindow()
+	case cmd == cmdTrayPauseReboot:
+		a.shutdownApp(true)
 	case cmd == cmdTrayExit:
-		procPostMessageW.Call(a.mainHWND, WM_DESTROY, 0, 0)
-		os.Exit(0)
+		a.shutdownApp(false)
+	case cmd == cmdTrayToggleKillBg:
+		cfg := a.getConfig()
+		cfg.KillBackgroundApps = !cfg.KillBackgroundApps
+		a.applyNewConfig(cfg)
 	case cmd >= cmdRegionBase && cmd < cmdRegionBase+8:
 		specs := domain.AllRegionSpecs()
 		cfg := a.getConfig()

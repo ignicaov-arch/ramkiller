@@ -10,9 +10,9 @@ import (
 
 func renderTabMemory(c *Canvas, x, w int, cfg domain.Config, hoverID string) []HitRegion {
 	var hits []HitRegion
-	c.FillRoundRect(x, 16, w, 206, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, 16, w, 206, RadiusCard, 1, ColorBorder)
-	c.DrawText("Regiões de Memória (Limpeza Profunda)", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 24, int32(x + w - 14), 44}, dtLeft|dtVCenter|dtSingleLine)
+	c.FillRoundRect(x, 16, w, 224, RadiusCard, ColorBgCard)
+	c.StrokeRoundRect(x, 16, w, 224, RadiusCard, 1, ColorBorder)
+	c.DrawText("Clean Areas · Regiões de Limpeza", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 24, int32(x + w - 14), 44}, dtLeft|dtVCenter|dtSingleLine)
 
 	specs := domain.AllRegionSpecs()
 	for i, spec := range specs {
@@ -22,27 +22,30 @@ func renderTabMemory(c *Canvas, x, w int, cfg domain.Config, hoverID string) []H
 			colX = x + w/2 + 2
 			rowIdx = i - 4
 		}
-		y := 52 + rowIdx*32
+		y := 50 + rowIdx*30
 		checked := cfg.CleanMask&spec.Flag == spec.Flag
-		id := fmt.Sprintf("reg_%d", i)
-		box := drawCheckboxShort(c, id, colX, y, w/2-18, checked, spec.Label, hoverID)
+		box := drawCheckboxShort(c, fmt.Sprintf("reg_%d", i), colX, y, w/2-18, checked, spec.Label, hoverID)
 		box.Arg = uint32(spec.Flag)
 		hits = append(hits, box)
 	}
-	hits = append(hits, drawCheckbox(c, "chk_allow_standby_auto", x+14, 188, cfg.AllowStandbyInAuto, "Permitir Lista de Espera* na limpeza automática", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_kill_bg", x+14, 178, cfg.KillBackgroundApps, "Matar 2º plano ocioso (preserva abertos e núcleo)", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_allow_standby_auto", x+14, 206, cfg.AllowStandbyInAuto, "Permitir Lista de Espera* na limpeza automática", hoverID))
 
-	c.FillRoundRect(x, 232, w, 150, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, 232, w, 150, RadiusCard, 1, ColorBorder)
-	c.DrawText("Automação e Atalho Global", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 240, int32(x + w - 14), 260}, dtLeft|dtVCenter|dtSingleLine)
+	c.FillRoundRect(x, 250, w, 162, RadiusCard, ColorBgCard)
+	c.StrokeRoundRect(x, 250, w, 162, RadiusCard, 1, ColorBorder)
+	c.DrawText("Automação, Teto Anômalo e Atalho", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 258, int32(x + w - 14), 278}, dtLeft|dtVCenter|dtSingleLine)
 
-	hits = append(hits, drawCheckboxShort(c, "chk_auto_pct", x+14, 268, 220, cfg.AutoCleanThresholdEnabled, "Limpar quando acima de:", hoverID))
-	hits = append(hits, drawStepper(c, "auto_pct", x+w-130, 266, cfg.AutoCleanThresholdPct, "%", hoverID)...)
+	hits = append(hits, drawCheckboxShort(c, "chk_auto_pct", x+14, 284, 220, cfg.AutoCleanThresholdEnabled, "Limpar quando acima de:", hoverID))
+	hits = append(hits, drawStepper(c, "auto_pct", x+w-130, 282, cfg.AutoCleanThresholdPct, "%", hoverID)...)
 
-	hits = append(hits, drawCheckboxShort(c, "chk_auto_min", x+14, 300, 220, cfg.AutoCleanIntervalEnabled, "Limpar a cada:", hoverID))
-	hits = append(hits, drawStepper(c, "auto_min", x+w-130, 298, cfg.AutoCleanIntervalMin, "m", hoverID)...)
+	hits = append(hits, drawCheckboxShort(c, "chk_auto_min", x+14, 314, 220, cfg.AutoCleanIntervalEnabled, "Limpar a cada:", hoverID))
+	hits = append(hits, drawStepper(c, "auto_min", x+w-130, 312, cfg.AutoCleanIntervalMin, "m", hoverID)...)
 
-	hits = append(hits, drawCheckboxShort(c, "chk_hotkey", x+14, 336, 220, cfg.HotkeyEnabled, "Atalho global:", hoverID))
-	hits = append(hits, drawButton(c, "cycle_hotkey", x+w-150, 334, 136, 26, domain.FormatHotkeyLabel(cfg.HotkeyModifiers, cfg.HotkeyKey), ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID))
+	c.DrawText("Teto de processo anômalo:", FontUI, 12, false, ColorTextPrimary, RECT{int32(x + 14), 344, int32(x + 240), 368}, dtLeft|dtVCenter|dtSingleLine)
+	hits = append(hits, drawStepper(c, "anom_mb", x+w-130, 344, cfg.AnomalyLimitMB, "MB", hoverID)...)
+
+	hits = append(hits, drawCheckboxShort(c, "chk_hotkey", x+14, 378, 220, cfg.HotkeyEnabled, "Atalho global:", hoverID))
+	hits = append(hits, drawButton(c, "cycle_hotkey", x+w-150, 376, 136, 26, domain.FormatHotkeyLabel(cfg.HotkeyModifiers, cfg.HotkeyKey), ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID))
 	return hits
 }
 
@@ -67,19 +70,22 @@ func drawCheckboxShort(c *Canvas, id string, x, y, maxW int, checked bool, label
 
 func renderTabAppearance(c *Canvas, x, w int, cfg domain.Config, hoverID string) []HitRegion {
 	var hits []HitRegion
-	c.FillRoundRect(x, 16, w, 178, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, 16, w, 178, RadiusCard, 1, ColorBorder)
+	c.FillRoundRect(x, 16, w, 212, RadiusCard, ColorBgCard)
+	c.StrokeRoundRect(x, 16, w, 212, RadiusCard, 1, ColorBorder)
 	c.DrawText("Estilo do Ícone na Bandeja", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 24, int32(x + w - 14), 44}, dtLeft|dtVCenter|dtSingleLine)
 
-	hits = append(hits, drawCheckbox(c, "chk_tray_transp", x+14, 52, cfg.TrayTransparent, "Usar fundo transparente", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_tray_border", x+14, 80, cfg.TrayShowBorder, "Mostrar contorno no ícone", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_tray_round", x+14, 108, cfg.TrayRoundCorners, "Cantos arredondados", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_tray_chgbg", x+14, 136, cfg.TrayChangeBg, "Alterar cor de fundo por nível (em vez do texto)", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_tray_aa", x+14, 164, cfg.TrayAntialias, "Suavização de fonte (ClearType)", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_tray_transp", x+14, 50, cfg.TrayTransparent, "Usar fundo transparente", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_tray_border", x+14, 78, cfg.TrayShowBorder, "Mostrar contorno no ícone", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_tray_round", x+14, 106, cfg.TrayRoundCorners, "Cantos arredondados", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_tray_chgbg", x+14, 134, cfg.TrayChangeBg, "Alterar cor de fundo por nível (em vez do texto)", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_tray_aa", x+14, 162, cfg.TrayAntialias, "Suavização de fonte (ClearType)", hoverID))
 
-	c.FillRoundRect(x, 206, w, 176, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, 206, w, 176, RadiusCard, 1, ColorBorder)
-	c.DrawText("Cores Semânticas (clique para alterar)", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 214, int32(x + w - 14), 234}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText("Tamanho da fonte na bandeja:", FontUI, 12, false, ColorTextPrimary, RECT{int32(x + 14), 192, int32(x + 250), 216}, dtLeft|dtVCenter|dtSingleLine)
+	hits = append(hits, drawStepper(c, "font_sz", x+w-130, 192, cfg.TrayFontSize, "px", hoverID)...)
+
+	c.FillRoundRect(x, 238, w, 174, RadiusCard, ColorBgCard)
+	c.StrokeRoundRect(x, 238, w, 174, RadiusCard, 1, ColorBorder)
+	c.DrawText("Cores Semânticas (clique para alterar)", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 246, int32(x + w - 14), 266}, dtLeft|dtVCenter|dtSingleLine)
 
 	swatches := []struct {
 		id    string
@@ -92,7 +98,7 @@ func renderTabAppearance(c *Canvas, x, w int, cfg domain.Config, hoverID string)
 		{"clr_dang", "Nível de Perigo", cfg.ColorDanger},
 	}
 	for i, s := range swatches {
-		y := 244 + i*33
+		y := 274 + i*33
 		c.DrawText(s.label, FontUI, 12, false, ColorTextPrimary, RECT{int32(x + 14), int32(y), int32(x + 220), int32(y + 26)}, dtLeft|dtVCenter|dtSingleLine)
 		swX := x + w - 84
 		c.FillRoundRect(swX, y+2, 70, 22, 6, RGBToARGB(s.rgb, 255))

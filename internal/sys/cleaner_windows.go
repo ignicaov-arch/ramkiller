@@ -5,7 +5,6 @@ package sys
 import (
 	"context"
 	"errors"
-	"os"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -31,7 +30,7 @@ func (e *Engine) IsCleaning() bool {
 	return e.cleaning.Load()
 }
 
-// Clean executa limpeza segura com trava atomica e mede o ganho real em bytes.
+// Clean executa encerramento de processos ociosos, reciclagem de Working Set e limpeza NT Kernel.
 func (e *Engine) Clean(
 	ctx context.Context,
 	src domain.CleanSource,
@@ -54,17 +53,24 @@ func (e *Engine) Clean(
 		return domain.CleanResult{}, err
 	}
 
+	elevated := IsElevated()
+	if elevated {
+		_ = EnableMemoryPrivileges()
+	}
+
 	res := domain.CleanResult{
 		Source:          src,
 		Mask:            mask,
 		BeforeUsedBytes: beforeStats.Physical.UsedBytes,
-		Elevated:        IsElevated(),
+		Elevated:        elevated,
 		RegionNames:     domain.RegionLabels(mask),
 	}
 
 	if mask&domain.RegionWorkingSet != 0 {
-		protectFG := src == domain.SourceAuto
-		trimmed, _ := TrimAllSafe(uint32(os.Getpid()), protectFG)
+		allowKill := cfg.KillBackgroundApps
+		killed, names, trimmed := ExecuteProcessPlan(cfg, allowKill)
+		res.KilledProcs = killed
+		res.KilledNames = names
 		res.TrimmedProcs = trimmed
 	}
 
@@ -73,7 +79,6 @@ func (e *Engine) Clean(
 	}
 
 	if res.Elevated {
-		_ = EnableMemoryPrivileges()
 		kernelOK, warns := RunKernelClean(mask)
 		res.KernelExecuted = kernelOK
 		res.Warnings = append(res.Warnings, warns...)

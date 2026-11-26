@@ -15,7 +15,7 @@ import (
 
 const errorAlreadyExists = 183
 
-// AppController orquestra estado, janela principal, configuracoes, bandeja e timer.
+// AppController orquestra estado, janela principal, configuracoes, bandeja, hotkey e guardiao.
 type AppController struct {
 	mu                sync.RWMutex
 	cfg               domain.Config
@@ -32,6 +32,7 @@ type AppController struct {
 	lastSummary       string
 	lastCleanUnix     int64
 	lastIconPct       int
+	tickCount         uint64
 	pendingResult     *domain.CleanResult
 	taskbarCreatedMsg uint32
 }
@@ -41,7 +42,7 @@ func RunApp(startMinimized bool) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	mutexHandle, _, lastErr := procCreateMutexW.Call(0, 0, uintptr(unsafe.Pointer(UTF16Ptr(`Local\RamKiller_SingleInstance_v1`))))
+	mutexHandle, _, lastErr := procCreateMutexW.Call(0, 0, uintptr(unsafe.Pointer(UTF16Ptr(sys.MainMutexName))))
 	if errno, ok := lastErr.(syscall.Errno); ok && errno == errorAlreadyExists {
 		if existing, _, _ := procFindWindowW.Call(uintptr(unsafe.Pointer(UTF16Ptr(mainClassName))), 0); existing != 0 {
 			procPostMessageW.Call(existing, wmAppShow, 0, 0)
@@ -53,8 +54,15 @@ func RunApp(startMinimized bool) error {
 	}
 
 	cfg, _ := sys.LoadConfig()
-	cfg.LoadOnStartup = sys.IsAutorunEnabled()
-	cfg.SkipUAC = sys.IsSkipUACTaskEnabled()
+	cfg.Sanitize()
+	if sys.IsElevated() {
+		_ = sys.EnableMemoryPrivileges()
+	}
+	sys.SyncStartupRegistration(cfg)
+	_ = sys.SaveConfig(cfg)
+	if cfg.SelfHeal {
+		_ = sys.EnsureGuardianRunning()
+	}
 	if cfg.StartMinimized {
 		startMinimized = true
 	}
@@ -113,11 +121,23 @@ func (a *AppController) getConfig() domain.Config {
 func (a *AppController) applyNewConfig(cfg domain.Config) {
 	cfg.Sanitize()
 	a.mu.Lock()
+	prev := a.cfg
 	a.cfg = cfg
 	a.lastIconPct = -1
 	a.mu.Unlock()
 	_ = sys.SaveConfig(cfg)
+
+	if prev.LoadOnStartup != cfg.LoadOnStartup || prev.StartMinimized != cfg.StartMinimized || prev.SkipUAC != cfg.SkipUAC {
+		sys.SyncStartupRegistration(cfg)
+	}
+	if prev.SelfHeal != cfg.SelfHeal {
+		sys.SyncGuardianState(cfg)
+	}
+
 	ApplyTopMost(a.mainHWND, cfg.AlwaysOnTop)
+	if a.settingsHWND != 0 {
+		ApplyTopMost(a.settingsHWND, cfg.AlwaysOnTop)
+	}
 	a.registerHotkey()
 	a.forceTrayRefresh()
 	procInvalidateRect.Call(a.mainHWND, 0, 0)

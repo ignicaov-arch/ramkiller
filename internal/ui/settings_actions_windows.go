@@ -13,19 +13,20 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 		cfg.AlwaysOnTop = !cfg.AlwaysOnTop
 	case "chk_autorun":
 		cfg.LoadOnStartup = !cfg.LoadOnStartup
-		_ = sys.SetAutorun(cfg.LoadOnStartup, cfg.StartMinimized)
+	case "chk_self_heal":
+		cfg.SelfHeal = !cfg.SelfHeal
 	case "chk_minimized":
 		cfg.StartMinimized = !cfg.StartMinimized
-		if cfg.LoadOnStartup {
-			_ = sys.SetAutorun(true, cfg.StartMinimized)
-		}
 	case "chk_confirm":
 		cfg.ConfirmClean = !cfg.ConfirmClean
 	case "chk_skip_uac":
 		if sys.IsElevated() {
 			cfg.SkipUAC = !cfg.SkipUAC
-			_ = sys.SetSkipUACTask(cfg.SkipUAC)
+		} else if err := sys.RelaunchAsAdmin("--minimized"); err == nil {
+			a.shutdownApp(false)
 		}
+	case "chk_kill_bg":
+		cfg.KillBackgroundApps = !cfg.KillBackgroundApps
 	case "chk_allow_standby_auto":
 		cfg.AllowStandbyInAuto = !cfg.AllowStandbyInAuto
 	case "chk_auto_pct":
@@ -37,13 +38,17 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 	case "chk_auto_min":
 		cfg.AutoCleanIntervalEnabled = !cfg.AutoCleanIntervalEnabled
 	case "auto_min_dec":
-		cfg.AutoCleanIntervalMin -= 5
+		cfg.AutoCleanIntervalMin = stepIntervalMin(cfg.AutoCleanIntervalMin, -1)
 	case "auto_min_inc":
-		cfg.AutoCleanIntervalMin += 5
+		cfg.AutoCleanIntervalMin = stepIntervalMin(cfg.AutoCleanIntervalMin, 1)
+	case "anom_mb_dec":
+		cfg.AnomalyLimitMB -= 256
+	case "anom_mb_inc":
+		cfg.AnomalyLimitMB += 256
 	case "chk_hotkey":
 		cfg.HotkeyEnabled = !cfg.HotkeyEnabled
 	case "cycle_hotkey":
-		cfg.HotkeyKey = nextHotkeyVK(cfg.HotkeyKey)
+		cfg.HotkeyModifiers, cfg.HotkeyKey = nextHotkeyPreset(cfg.HotkeyModifiers, cfg.HotkeyKey)
 	case "chk_tray_transp":
 		cfg.TrayTransparent = !cfg.TrayTransparent
 	case "chk_tray_border":
@@ -54,6 +59,10 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 		cfg.TrayChangeBg = !cfg.TrayChangeBg
 	case "chk_tray_aa":
 		cfg.TrayAntialias = !cfg.TrayAntialias
+	case "font_sz_dec":
+		cfg.TrayFontSize--
+	case "font_sz_inc":
+		cfg.TrayFontSize++
 	case "clr_text":
 		if c, ok := ChooseRGBColor(hwnd, cfg.ColorText); ok {
 			cfg.ColorText = c
@@ -76,6 +85,9 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 		cfg.WarningLevelPct += 5
 	case "dang_lvl_dec":
 		cfg.DangerLevelPct -= 5
+		if cfg.DangerLevelPct < cfg.WarningLevelPct+5 && cfg.WarningLevelPct > 10 {
+			cfg.WarningLevelPct = cfg.DangerLevelPct - 5
+		}
 	case "dang_lvl_inc":
 		cfg.DangerLevelPct += 5
 	case "tray_single_act":
@@ -91,15 +103,28 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 	}
 }
 
-func nextHotkeyVK(cur uint32) uint32 {
-	switch cur {
-	case 0x70:
-		return 0x71 // F2
-	case 0x71:
-		return 0x72 // F3
-	case 0x72:
-		return 0x78 // F9
+func stepIntervalMin(cur int, dir int) int {
+	if dir < 0 {
+		if cur <= 5 {
+			return 1
+		}
+		return cur - 5
+	}
+	if cur < 5 {
+		return 5
+	}
+	return cur + 5
+}
+
+func nextHotkeyPreset(mods, vk uint32) (uint32, uint32) {
+	switch {
+	case mods == (0x0002|0x0004) && vk == 0x70:
+		return 0x0002, 0x70 // Ctrl + F1
+	case mods == 0x0002 && vk == 0x70:
+		return 0x0002 | 0x0001, 0x70 // Ctrl + Alt + F1
+	case mods == (0x0002|0x0001) && vk == 0x70:
+		return 0x0002 | 0x0004, 0x78 // Ctrl + Shift + F9
 	default:
-		return 0x70 // F1
+		return 0x0002 | 0x0004, 0x70 // Ctrl + Shift + F1
 	}
 }

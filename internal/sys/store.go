@@ -114,11 +114,12 @@ func AppendCleanLog(res domain.CleanResult) error {
 	defer f.Close()
 
 	line := fmt.Sprintf(
-		"[%s] src=%s elevated=%t kernel=%t procs=%d freed=%s dur=%dms\n",
+		"[%s] src=%s elevated=%t kernel=%t killed=%d procs=%d freed=%s dur=%dms\n",
 		time.Now().Format("2006-01-02 15:04:05"),
 		res.Source,
 		res.Elevated,
 		res.KernelExecuted,
+		res.KilledProcs,
 		res.TrimmedProcs,
 		domain.FormatBytes(res.FreedBytes),
 		res.DurationMs,

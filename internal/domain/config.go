@@ -9,15 +9,21 @@ import (
 	"unicode"
 )
 
-const maxConfigBytes = 65536
+const (
+	maxConfigBytes       = 65536
+	CurrentConfigVersion = 2
+)
 
 // Config armazena todas as preferencias persistidas do RamKiller.
 type Config struct {
+	ConfigVersion             int         `json:"configVersion"`
 	AlwaysOnTop               bool        `json:"alwaysOnTop"`
 	LoadOnStartup             bool        `json:"loadOnStartup"`
 	StartMinimized            bool        `json:"startMinimized"`
+	SelfHeal                  bool        `json:"selfHeal"`
 	ConfirmClean              bool        `json:"confirmClean"`
 	SkipUAC                   bool        `json:"skipUac"`
+	KillBackgroundApps        bool        `json:"killBackgroundApps"`
 	CleanMask                 CleanRegion `json:"cleanMask"`
 	AutoCleanThresholdEnabled bool        `json:"autoCleanThresholdEnabled"`
 	AutoCleanThresholdPct     int         `json:"autoCleanThresholdPct"`
@@ -48,30 +54,39 @@ type Config struct {
 	AnomalyLimitMB            int         `json:"anomalyLimitMb"`
 }
 
-// DefaultConfig retorna a configuracao enxuta e segura de fabrica.
+// DefaultConfig retorna a configuracao completa v2 com todas as regioes e protecoes ativas.
 func DefaultConfig() Config {
 	return Config{
-		CleanMask:             MaskDefault,
-		AutoCleanThresholdPct: 80,
-		AutoCleanIntervalMin:  15,
-		HotkeyModifiers:       0x0002,
-		HotkeyKey:             0x70,
-		TrayRoundCorners:      true,
-		TrayChangeBg:          true,
-		TrayAntialias:         true,
-		TrayFontName:          "Segoe UI",
-		TrayFontSize:          10,
-		ColorText:             0xFFFFFF,
-		ColorBg:               0x10B981,
-		ColorWarning:          0xF59E0B,
-		ColorDanger:           0xEF4444,
-		WarningLevelPct:       60,
-		DangerLevelPct:        90,
-		TraySingleClick:       ActionToggleWindow,
-		TrayMiddleClick:       ActionCleanMemory,
-		ShowBalloonResult:     true,
-		LogResults:            true,
-		AnomalyLimitMB:        2560,
+		ConfigVersion:             CurrentConfigVersion,
+		LoadOnStartup:             true,
+		StartMinimized:            true,
+		SelfHeal:                  true,
+		SkipUAC:                   true,
+		KillBackgroundApps:        true,
+		CleanMask:                 MaskAll,
+		AutoCleanThresholdEnabled: true,
+		AutoCleanThresholdPct:     80,
+		AutoCleanIntervalMin:      15,
+		AllowStandbyInAuto:        true,
+		HotkeyEnabled:             true,
+		HotkeyModifiers:           0x0002 | 0x0004, // Ctrl + Shift + F1
+		HotkeyKey:                 0x70,
+		TrayRoundCorners:          true,
+		TrayChangeBg:              true,
+		TrayAntialias:             true,
+		TrayFontName:              "Segoe UI",
+		TrayFontSize:              10,
+		ColorText:                 0xFFFFFF,
+		ColorBg:                   0x10B981,
+		ColorWarning:              0xF59E0B,
+		ColorDanger:               0xEF4444,
+		WarningLevelPct:           60,
+		DangerLevelPct:            90,
+		TraySingleClick:           ActionToggleWindow,
+		TrayMiddleClick:           ActionCleanMemory,
+		ShowBalloonResult:         true,
+		LogResults:                true,
+		AnomalyLimitMB:            2560,
 	}
 }
 
@@ -100,9 +115,10 @@ func sanitizeFontName(raw string) string {
 
 // Sanitize normaliza invariantes numericos, mascaras, cores e acoes de bandeja.
 func (c *Config) Sanitize() {
+	c.ConfigVersion = CurrentConfigVersion
 	c.CleanMask &= MaskAll
 	if c.CleanMask == 0 {
-		c.CleanMask = MaskDefault
+		c.CleanMask = RegionWorkingSet
 	}
 	c.AutoCleanThresholdPct = clampInt(c.AutoCleanThresholdPct, 10, 99)
 	c.AutoCleanIntervalMin = clampInt(c.AutoCleanIntervalMin, 1, 1440)
@@ -126,8 +142,21 @@ func (c *Config) Sanitize() {
 	}
 	c.AnomalyLimitMB = clampInt(c.AnomalyLimitMB, 512, 32768)
 	if c.HotkeyKey == 0 {
-		c.HotkeyModifiers = 0x0002
+		c.HotkeyModifiers = 0x0002 | 0x0004
 		c.HotkeyKey = 0x70
+	}
+}
+
+func upgradeLegacyConfig(cfg *Config, data []byte) {
+	hasVersion := bytes.Contains(data, []byte(`"configVersion"`))
+	if cfg.ConfigVersion < CurrentConfigVersion || (!hasVersion && cfg.CleanMask == MaskDefault) {
+		cfg.ConfigVersion = CurrentConfigVersion
+		cfg.CleanMask = MaskAll
+		cfg.AllowStandbyInAuto = true
+		cfg.LoadOnStartup = true
+		cfg.SelfHeal = true
+		cfg.KillBackgroundApps = true
+		cfg.SkipUAC = true
 	}
 }
 
@@ -149,6 +178,7 @@ func ParseConfigJSON(data []byte) (Config, error) {
 	if err := dec.Decode(&extra); err != io.EOF {
 		return DefaultConfig(), errors.New("conteudo extra inesperado apos JSON")
 	}
+	upgradeLegacyConfig(&cfg, data)
 	cfg.Sanitize()
 	return cfg, nil
 }
