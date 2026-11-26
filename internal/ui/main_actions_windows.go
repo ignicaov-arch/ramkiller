@@ -3,41 +3,63 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
 	"github.com/ignicaov-arch/ramkiller/internal/sys"
 )
 
+func (a *AppController) lookupTopProcName(pid uint32) string {
+	for _, p := range a.stats.TopProcesses {
+		if p.PID == pid {
+			return p.Name
+		}
+	}
+	return fmt.Sprintf("PID %d", pid)
+}
+
 func (a *AppController) handleMainClick(hit HitRegion) {
 	switch {
 	case hit.ID == "clean_now":
 		a.triggerClean(domain.SourceManual, 0)
-	case hit.ID == "clean_deep":
-		a.triggerClean(domain.SourceManual, domain.MaskAll)
+	case hit.ID == "clean_pagefile":
+		a.triggerPagefileClean()
 	case hit.ID == "stop_until_reboot":
 		a.shutdownApp(true)
 	case hit.ID == "open_settings":
 		a.openSettingsWindow()
 	case hit.ID == "elevate_admin":
-		if err := sys.RelaunchAsAdmin("--minimized"); err == nil {
+		if err := sys.RelaunchAsAdmin(); err == nil {
 			a.shutdownApp(false)
 		}
 	case strings.HasPrefix(hit.ID, "trim_pid_") && hit.Arg > 0:
-		if err := sys.TrimProcessWorkingSet(hit.Arg); err == nil {
-			a.lastSummary = "Working Set do processo reciclado com sucesso."
+		name, beforeWS, afterWS, err := sys.TrimProcessWorkingSetDelta(hit.Arg)
+		if err == nil {
+			stamp := time.Now().Format("15:04:05")
+			if beforeWS > afterWS && (beforeWS-afterWS) >= 1024*1024 {
+				a.lastSummary = fmt.Sprintf("%s · Reciclado %s: %s -> %s (-%s RAM)",
+					stamp, name, domain.FormatBytes(beforeWS), domain.FormatBytes(afterWS), domain.FormatBytes(beforeWS-afterWS))
+			} else {
+				a.lastSummary = fmt.Sprintf("%s · Reciclado %s: RAM já enxuta (%s)",
+					stamp, name, domain.FormatBytes(afterWS))
+			}
 		} else {
 			a.lastSummary = "Sem permissão para reciclar este processo (use Modo Kernel)."
 		}
 		a.refreshStats()
+		a.forceTrayRefresh()
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	case strings.HasPrefix(hit.ID, "kill_pid_") && hit.Arg > 0:
+		name := a.lookupTopProcName(hit.Arg)
 		if err := sys.TerminateProcessSafe(hit.Arg); err == nil {
-			a.lastSummary = "Processo em segundo plano encerrado."
+			a.lastSummary = fmt.Sprintf("%s · Encerrado %s (%d).", time.Now().Format("15:04:05"), name, hit.Arg)
 		} else {
-			a.lastSummary = "Não foi possível encerrar o processo selecionado."
+			a.lastSummary = fmt.Sprintf("Não foi possível encerrar %s (%d).", name, hit.Arg)
 		}
 		a.refreshStats()
+		a.forceTrayRefresh()
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	}
 }
@@ -71,8 +93,8 @@ func (a *AppController) handleTrayMenuCommand(cmd uint32) {
 		a.toggleMainWindow()
 	case cmd == cmdTrayClean:
 		a.triggerClean(domain.SourceManual, 0)
-	case cmd == cmdTrayDeep:
-		a.triggerClean(domain.SourceManual, domain.MaskAll)
+	case cmd == cmdTrayCleanPagefile:
+		a.triggerPagefileClean()
 	case cmd == cmdTraySettings:
 		a.openSettingsWindow()
 	case cmd == cmdTrayPauseReboot:

@@ -6,27 +6,22 @@ import (
 	"unicode/utf16"
 )
 
-func TestEffectiveMaskAndAutoFreezeGuard(t *testing.T) {
+func TestEffectiveMaskUnifiedAcrossSources(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.CleanMask = MaskAll
 	cfg.AllowStandbyInAuto = false
 
-	autoMask := EffectiveMask(cfg, SourceAuto, 0)
-	if autoMask&MaskFreezeRisk != 0 {
-		t.Fatalf("modo auto sem AllowStandbyInAuto nao pode incluir MaskFreezeRisk: %v", autoMask)
+	for _, src := range []CleanSource{SourceManual, SourceAuto, SourceHotkey, SourceCLI} {
+		if got := EffectiveMask(cfg, src, 0); got != MaskAll {
+			t.Fatalf("fonte %s deve aplicar MaskAll unificado, obteve %v", src, got)
+		}
 	}
-	cfg.AllowStandbyInAuto = true
-	if EffectiveMask(cfg, SourceAuto, 0) != MaskAll {
-		t.Fatalf("modo auto com AllowStandbyInAuto deve incluir todas as regioes")
+	if got := EffectiveMask(cfg, SourceAuto, RegionWorkingSet); got != RegionWorkingSet {
+		t.Fatalf("override explicitamente informado deve prevalecer, obteve %v", got)
 	}
-	if EffectiveMask(cfg, SourceManual, 0) != MaskAll {
-		t.Fatalf("modo manual deve aplicar todas as regioes")
-	}
-
-	cfg.CleanMask = MaskFreezeRisk
-	cfg.AllowStandbyInAuto = false
-	if fallback := EffectiveMask(cfg, SourceAuto, 0); fallback != RegionWorkingSet {
-		t.Fatalf("esperava fallback RegionWorkingSet, obteve %v", fallback)
+	cfg.CleanMask = 0
+	if fallback := EffectiveMask(cfg, SourceAuto, 0); fallback != MaskAll {
+		t.Fatalf("esperava fallback MaskAll, obteve %v", fallback)
 	}
 }
 
@@ -114,5 +109,9 @@ func TestFormattingAndTooltipUTF16Cap(t *testing.T) {
 	sum := FormatCleanSummary(CleanResult{FreedBytes: 2 * gb, KilledProcs: 7, TrimmedProcs: 140, KernelExecuted: true, DurationMs: 35})
 	if !strings.Contains(sum, "2.00 GB") || !strings.Contains(sum, "7 encerrados") || !strings.Contains(sum, "Modo Kernel") {
 		t.Errorf("resumo inesperado: %q", sum)
+	}
+	pfSum := FormatCleanSummary(CleanResult{Source: SourcePagefile, PagefileFreedBytes: 2 * gb, KilledProcs: 3, DurationMs: 18})
+	if !strings.Contains(pfSum, "Paginação limpa") || !strings.Contains(pfSum, "2.00 GB") || !strings.Contains(pfSum, "3 encerrados") {
+		t.Errorf("resumo pagefile inesperado: %q", pfSum)
 	}
 }

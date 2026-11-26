@@ -81,21 +81,15 @@ func RegionLabels(mask CleanRegion) []string {
 	return labels
 }
 
-// EffectiveMask resolve a mascara real aplicada respeitando configuracao automatica/manual.
-func EffectiveMask(cfg Config, src CleanSource, overrideMask CleanRegion) CleanRegion {
+// EffectiveMask resolve a mascara unificada aplicada em limpeza manual, automatica, CLI e atalho.
+func EffectiveMask(cfg Config, _ CleanSource, overrideMask CleanRegion) CleanRegion {
 	mask := overrideMask
 	if mask == 0 {
 		mask = cfg.CleanMask
 	}
 	mask &= MaskAll
 	if mask == 0 {
-		mask = RegionWorkingSet
-	}
-	if src == SourceAuto && !cfg.AllowStandbyInAuto {
-		mask &^= MaskFreezeRisk
-		if mask == 0 {
-			mask = RegionWorkingSet
-		}
+		mask = MaskAll
 	}
 	return mask
 }

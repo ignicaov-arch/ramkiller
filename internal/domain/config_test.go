@@ -73,7 +73,13 @@ func TestParseConfigJSONHostileInputsAndV1Upgrade(t *testing.T) {
 		t.Fatalf("falhou ao migrar v1: %v", err)
 	}
 	if upgraded.ConfigVersion != CurrentConfigVersion || upgraded.CleanMask != MaskAll || !upgraded.LoadOnStartup || !upgraded.AllowStandbyInAuto {
-		t.Fatalf("upgrade v1->v2 incompleto: %+v", upgraded)
+		t.Fatalf("upgrade v1->v3 incompleto: %+v", upgraded)
+	}
+
+	v2Legacy := []byte(`{"configVersion":2,"cleanMask":231,"allowStandbyInAuto":false}`)
+	upgradedV2, err := ParseConfigJSON(v2Legacy)
+	if err != nil || upgradedV2.ConfigVersion != CurrentConfigVersion || upgradedV2.CleanMask != MaskAll || !upgradedV2.AllowStandbyInAuto {
+		t.Fatalf("upgrade v2->v3 incompleto: err=%v cfg=%+v", err, upgradedV2)
 	}
 
 	if _, err := ParseConfigJSON(nil); err == nil {

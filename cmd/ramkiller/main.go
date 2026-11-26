@@ -49,8 +49,9 @@ func main() {
 		}
 	}
 
+	isBoot := hasArg(args, "--boot")
 	minimized := hasArg(args, "--minimized")
-	if err := ui.RunApp(minimized); err != nil {
+	if err := ui.RunApp(minimized, isBoot); err != nil {
 		attachParentConsole()
 		fmt.Fprintf(os.Stderr, "Erro ao iniciar RamKiller: %v\n", err)
 		os.Exit(1)

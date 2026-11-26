@@ -41,7 +41,6 @@ func TestAllSettingsControlsAndSteppersWork(t *testing.T) {
 		{"chk_minimized", func(c *domain.Config) bool { return c.StartMinimized }},
 		{"chk_confirm", func(c *domain.Config) bool { return c.ConfirmClean }},
 		{"chk_kill_bg", func(c *domain.Config) bool { return c.KillBackgroundApps }},
-		{"chk_allow_standby_auto", func(c *domain.Config) bool { return c.AllowStandbyInAuto }},
 		{"chk_auto_pct", func(c *domain.Config) bool { return c.AutoCleanThresholdEnabled }},
 		{"chk_auto_min", func(c *domain.Config) bool { return c.AutoCleanIntervalEnabled }},
 		{"chk_hotkey", func(c *domain.Config) bool { return c.HotkeyEnabled }},
@@ -134,12 +133,22 @@ func TestRenderQAScreenshotsAndAllButtonHits(t *testing.T) {
 		}
 	}
 
-	// Confirma botoes obrigatorios no Canvas Principal
+	// Confirma botoes obrigatorios e acoes de processo no Canvas Principal
 	cfg := domain.DefaultConfig()
-	mc, hits := RenderMainCanvas(domain.MemoryStats{Elevated: true}, cfg, "", "", false)
+	stats := domain.MemoryStats{
+		Elevated: true,
+		TopProcesses: []domain.ProcessInfo{
+			{PID: 4242, Name: "chrome.exe", WorkingSetBytes: 850 * 1024 * 1024, PrivateBytes: 1200 * 1024 * 1024, OpenWindow: true},
+			{PID: 5353, Name: "widgets.exe", WorkingSetBytes: 320 * 1024 * 1024, PrivateBytes: 600 * 1024 * 1024, Killable: true},
+		},
+	}
+	mc, hits := RenderMainCanvas(stats, cfg, "", "", false)
 	mc.Close()
-	needed := map[string]bool{"open_settings": false, "clean_now": false, "clean_deep": false, "stop_until_reboot": false}
+	needed := map[string]bool{"open_settings": false, "clean_now": false, "clean_pagefile": false, "stop_until_reboot": false, "trim_pid_4242": false, "kill_pid_5353": false}
 	for _, h := range hits {
+		if h.ID == "clean_deep" {
+			t.Errorf("clean_deep deveria ter sido unificado em clean_now")
+		}
 		if _, ok := needed[h.ID]; ok {
 			needed[h.ID] = true
 		}

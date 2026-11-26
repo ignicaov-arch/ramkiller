@@ -53,31 +53,57 @@ func (a *AppController) onTick() {
 	if vis, _, _ := procIsWindowVisible.Call(a.mainHWND); vis != 0 {
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	}
-	if ok, src := domain.ShouldAutoClean(cfg, pct, a.lastCleanUnix, time.Now().Unix()); ok {
+	a.mu.RLock()
+	refUnix := a.lastCleanUnix
+	if refUnix == 0 && !(cfg.AutoCleanThresholdEnabled && pct >= cfg.AutoCleanThresholdPct) {
+		refUnix = a.startedUnix
+	}
+	a.mu.RUnlock()
+	if ok, src := domain.ShouldAutoClean(cfg, pct, refUnix, time.Now().Unix()); ok {
 		a.triggerClean(src, 0)
 	}
+}
+
+func (a *AppController) runAsyncClean(execFn func() (domain.CleanResult, error)) {
+	if a.engine.IsCleaning() {
+		return
+	}
+	go func() {
+		res, err := execFn()
+		if err == nil {
+			a.mu.Lock()
+			a.pendingResult = &res
+			if res.Source != domain.SourcePagefile {
+				a.lastCleanUnix = time.Now().Unix()
+			}
+			a.mu.Unlock()
+		}
+		procPostMessageW.Call(a.mainHWND, wmAppCleanDone, 0, 0)
+	}()
 }
 
 func (a *AppController) triggerClean(src domain.CleanSource, overrideMask domain.CleanRegion) {
 	cfg := a.getConfig()
 	if src == domain.SourceManual && cfg.ConfirmClean {
-		if !ConfirmBox(a.mainHWND, "Confirmar Limpeza", "Deseja executar a reciclagem e limpeza de RAM agora?") {
+		if !ConfirmBox(a.mainHWND, "Confirmar Limpeza", "Deseja executar a limpeza completa (2º plano, Working Set e Kernel) agora?") {
 			return
 		}
 	}
-	if a.engine.IsCleaning() {
-		return
-	}
-	go func() {
-		res, err := a.engine.Clean(context.Background(), src, cfg, overrideMask)
-		if err == nil {
-			a.mu.Lock()
-			a.pendingResult = &res
-			a.lastCleanUnix = time.Now().Unix()
-			a.mu.Unlock()
+	a.runAsyncClean(func() (domain.CleanResult, error) {
+		return a.engine.Clean(context.Background(), src, cfg, overrideMask)
+	})
+}
+
+func (a *AppController) triggerPagefileClean() {
+	cfg := a.getConfig()
+	if cfg.ConfirmClean {
+		if !ConfirmBox(a.mainHWND, "Limpar Paginação", "Deseja limpar o arquivo de paginação e caches do sistema agora?") {
+			return
 		}
-		procPostMessageW.Call(a.mainHWND, wmAppCleanDone, 0, 0)
-	}()
+	}
+	a.runAsyncClean(func() (domain.CleanResult, error) {
+		return a.engine.CleanPagefile(context.Background(), cfg)
+	})
 }
 
 func (a *AppController) onCleanFinished() {

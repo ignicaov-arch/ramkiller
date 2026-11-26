@@ -11,7 +11,7 @@ import (
 
 const (
 	maxConfigBytes       = 65536
-	CurrentConfigVersion = 2
+	CurrentConfigVersion = 3
 )
 
 // Config armazena todas as preferencias persistidas do RamKiller.

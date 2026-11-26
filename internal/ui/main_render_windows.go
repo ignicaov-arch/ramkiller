@@ -88,7 +88,7 @@ func drawProcessesCard(c *Canvas, x, y, w int, procs []domain.ProcessInfo, hover
 		if p.Anomaly {
 			memColor = ColorRed
 		}
-		c.DrawText(domain.FormatBytes(p.PrivateBytes), FontUI, 11, true, memColor, RECT{int32(x + w - 218), int32(rowY), int32(x + w - 150), int32(rowY + 28)}, dtRight|dtVCenter|dtSingleLine)
+		c.DrawText(domain.FormatBytes(p.WorkingSetBytes), FontUI, 11, true, memColor, RECT{int32(x + w - 218), int32(rowY), int32(x + w - 150), int32(rowY + 28)}, dtRight|dtVCenter|dtSingleLine)
 
 		trimBtn := drawButton(c, fmt.Sprintf("trim_pid_%d", p.PID), x+w-pad-130, rowY+3, 62, 22, "Reciclar", ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID)
 		trimBtn.Arg = p.PID
@@ -130,24 +130,24 @@ func RenderMainCanvas(stats domain.MemoryStats, cfg domain.Config, lastSummary, 
 	hits = append(hits, drawButton(c, "open_settings", mainWinWidth-pad-106, 15, 106, 26, "Configurações", ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID))
 
 	drawMemoryBankCard(c, pad, 54, contentW, "Memória Física", stats.Physical, cfg)
-	drawMemoryBankCard(c, pad, 128, contentW, "Arquivo de Paginação / Commit", stats.Pagefile, cfg)
+	drawMemoryBankCard(c, pad, 128, contentW, "Arquivo de Paginação (Pagefile)", stats.Pagefile, cfg)
 	drawMemoryBankCard(c, pad, 202, contentW, "Cache do Sistema", stats.SystemCache, cfg)
 
 	hits = append(hits, drawProcessesCard(c, pad, 278, contentW, stats.TopProcesses, hoverID)...)
 
 	statusTxt := lastSummary
 	if cleaning {
-		statusTxt = "Executando limpeza profunda e eliminação de processos..."
+		statusTxt = "Executando limpeza completa (processos, Working Set e Kernel)..."
 	} else if statusTxt == "" {
-		statusTxt = "Pronto · Mantém apps abertos, encerra 2º plano e limpa Kernel."
+		statusTxt = "Pronto · Limpar Memória executa tudo; Reciclar e Paginação disponíveis."
 	}
 	c.FillRoundRect(pad, 486, contentW, 30, 8, ColorBgCard)
 	c.StrokeRoundRect(pad, 486, contentW, 30, 8, 1, ColorBorder)
 	c.DrawText(statusTxt, FontUI, 11, false, ColorTextMuted, RECT{pad + 10, 486, mainWinWidth - pad - 10, 516}, dtLeft|dtVCenter|dtSingleLine|dtEndEllipsis)
 
 	btnW := (contentW - 10) / 2
-	hits = append(hits, drawButton(c, "clean_now", pad, 528, btnW, 42, "Limpar Memória Agora", ColorGreen, 0, ColorBgBase, true, hoverID))
-	hits = append(hits, drawButton(c, "clean_deep", pad+btnW+10, 528, btnW, 42, "Limpeza Profunda", ColorBgElevated, ColorBorder, ColorTextPrimary, true, hoverID))
+	hits = append(hits, drawButton(c, "clean_now", pad, 528, btnW, 42, "Limpar Memória", ColorGreen, 0, ColorBgBase, true, hoverID))
+	hits = append(hits, drawButton(c, "clean_pagefile", pad+btnW+10, 528, btnW, 42, "Limpar Paginação", ColorBlueSoft, ColorBlue, ColorTextPrimary, true, hoverID))
 	hits = append(hits, drawButton(c, "stop_until_reboot", pad, 580, contentW, 38, "Encerrar até Reiniciar o PC", ColorRedSoft, ColorRed, ColorRed, true, hoverID))
 
 	return c, hits

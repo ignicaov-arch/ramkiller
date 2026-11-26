@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
@@ -30,6 +31,7 @@ type AppController struct {
 	settingsHover     string
 	settingsTab       int
 	lastSummary       string
+	startedUnix       int64
 	lastCleanUnix     int64
 	lastIconPct       int
 	tickCount         uint64
@@ -38,7 +40,7 @@ type AppController struct {
 }
 
 // RunApp inicializa o aplicativo nativo na bandeja do Windows (loop Win32 em thread fixa).
-func RunApp(startMinimized bool) error {
+func RunApp(startMinimized bool, isBoot bool) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -63,13 +65,15 @@ func RunApp(startMinimized bool) error {
 	if cfg.SelfHeal {
 		_ = sys.EnsureGuardianRunning()
 	}
-	if cfg.StartMinimized {
+	if isBoot && cfg.StartMinimized {
 		startMinimized = true
 	}
 
+	nowUnix := time.Now().Unix()
 	ctrl := &AppController{
 		cfg:         cfg,
 		engine:      sys.NewEngine(),
+		startedUnix: nowUnix,
 		lastIconPct: -1,
 	}
 	ctrl.taskbarCreatedMsg = registerTaskbarMsg()
@@ -124,6 +128,9 @@ func (a *AppController) applyNewConfig(cfg domain.Config) {
 	prev := a.cfg
 	a.cfg = cfg
 	a.lastIconPct = -1
+	if cfg.AutoCleanIntervalEnabled && (!prev.AutoCleanIntervalEnabled || prev.AutoCleanIntervalMin != cfg.AutoCleanIntervalMin) && a.lastCleanUnix == 0 {
+		a.startedUnix = time.Now().Unix()
+	}
 	a.mu.Unlock()
 	_ = sys.SaveConfig(cfg)
 

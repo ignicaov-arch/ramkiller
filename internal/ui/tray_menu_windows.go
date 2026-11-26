@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	cmdTrayToggle       = 1001
-	cmdTrayClean        = 1002
-	cmdTrayDeep         = 1003
-	cmdTraySettings     = 1004
-	cmdTrayExit         = 1005
-	cmdTrayToggleKillBg = 1006
-	cmdTrayPauseReboot  = 1007
+	cmdTrayToggle        = 1001
+	cmdTrayClean         = 1002
+	cmdTrayCleanPagefile = 1003
+	cmdTraySettings      = 1004
+	cmdTrayExit          = 1005
+	cmdTrayToggleKillBg  = 1006
+	cmdTrayPauseReboot   = 1007
 
 	cmdRegionBase   = 1100
 	cmdThreshOff    = 1200
@@ -110,8 +110,8 @@ func ShowTrayContextMenu(hwnd uintptr, cfg domain.Config) uint32 {
 
 	addMenuItem(hMenu, MF_STRING, cmdTrayToggle, "Abrir / Ocultar Painel")
 	addMenuSep(hMenu)
-	addMenuItem(hMenu, MF_STRING, cmdTrayClean, "Limpar Memória Agora")
-	addMenuItem(hMenu, MF_STRING, cmdTrayDeep, "Limpeza Profunda (Kernel)")
+	addMenuItem(hMenu, MF_STRING, cmdTrayClean, "Limpar Memória")
+	addMenuItem(hMenu, MF_STRING, cmdTrayCleanPagefile, "Limpar Paginação")
 	addMenuSep(hMenu)
 	addMenuItem(hMenu, MF_POPUP, subReg, "Áreas de Limpeza")
 	killFlags := uintptr(MF_STRING)

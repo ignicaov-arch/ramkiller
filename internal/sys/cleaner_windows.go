@@ -59,11 +59,12 @@ func (e *Engine) Clean(
 	}
 
 	res := domain.CleanResult{
-		Source:          src,
-		Mask:            mask,
-		BeforeUsedBytes: beforeStats.Physical.UsedBytes,
-		Elevated:        elevated,
-		RegionNames:     domain.RegionLabels(mask),
+		Source:              src,
+		Mask:                mask,
+		BeforeUsedBytes:     beforeStats.Physical.UsedBytes,
+		BeforePagefileBytes: beforeStats.Pagefile.UsedBytes,
+		Elevated:            elevated,
+		RegionNames:         domain.RegionLabels(mask),
 	}
 
 	if mask&domain.RegionWorkingSet != 0 {
@@ -93,8 +94,79 @@ func (e *Engine) Clean(
 		if res.BeforeUsedBytes > res.AfterUsedBytes {
 			res.FreedBytes = res.BeforeUsedBytes - res.AfterUsedBytes
 		}
+		res.AfterPagefileBytes = afterStats.Pagefile.UsedBytes
+		if res.BeforePagefileBytes > res.AfterPagefileBytes {
+			res.PagefileFreedBytes = res.BeforePagefileBytes - res.AfterPagefileBytes
+		}
 	} else {
 		res.AfterUsedBytes = res.BeforeUsedBytes
+		res.AfterPagefileBytes = res.BeforePagefileBytes
+	}
+	res.DurationMs = time.Since(start).Milliseconds()
+
+	if cfg.LogResults {
+		_ = AppendCleanLog(res)
+	}
+	return res, nil
+}
+
+// CleanPagefile libera consumo real no arquivo de paginacao sem empurrar RAM aberta para o disco.
+func (e *Engine) CleanPagefile(ctx context.Context, cfg domain.Config) (domain.CleanResult, error) {
+	if !e.cleaning.CompareAndSwap(false, true) {
+		return domain.CleanResult{}, ErrCleanInProgress
+	}
+	defer e.cleaning.Store(false)
+
+	if err := ctx.Err(); err != nil {
+		return domain.CleanResult{}, err
+	}
+
+	start := time.Now()
+	beforeStats, err := ReadMemoryStats(0, cfg.AnomalyLimitMB)
+	if err != nil {
+		return domain.CleanResult{}, err
+	}
+
+	elevated := IsElevated()
+	if elevated {
+		_ = EnableMemoryPrivileges()
+	}
+
+	res := domain.CleanResult{
+		Source:              domain.SourcePagefile,
+		Mask:                domain.RegionCombineMemoryLists | domain.RegionRegistryCache | domain.RegionModifiedFileCache | domain.RegionSystemFileCache | domain.RegionStandbyPriority0,
+		BeforeUsedBytes:     beforeStats.Physical.UsedBytes,
+		BeforePagefileBytes: beforeStats.Pagefile.UsedBytes,
+		Elevated:            elevated,
+		RegionNames:         []string{"Paginação / Commit Real"},
+	}
+
+	killed, names := ExecutePagefileProcessPlan(cfg)
+	res.KilledProcs = killed
+	res.KilledNames = names
+
+	if res.Elevated {
+		kernelOK, warns := RunPagefileKernelClean()
+		res.KernelExecuted = kernelOK
+		res.Warnings = append(res.Warnings, warns...)
+	}
+
+	runtime.GC()
+	TrimSelf()
+
+	afterStats, err := ReadMemoryStats(0, cfg.AnomalyLimitMB)
+	if err == nil {
+		res.AfterUsedBytes = afterStats.Physical.UsedBytes
+		if res.BeforeUsedBytes > res.AfterUsedBytes {
+			res.FreedBytes = res.BeforeUsedBytes - res.AfterUsedBytes
+		}
+		res.AfterPagefileBytes = afterStats.Pagefile.UsedBytes
+		if res.BeforePagefileBytes > res.AfterPagefileBytes {
+			res.PagefileFreedBytes = res.BeforePagefileBytes - res.AfterPagefileBytes
+		}
+	} else {
+		res.AfterUsedBytes = res.BeforeUsedBytes
+		res.AfterPagefileBytes = res.BeforePagefileBytes
 	}
 	res.DurationMs = time.Since(start).Milliseconds()
 

@@ -6,31 +6,63 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"syscall"
+	"time"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
 )
 
-// TrimProcessWorkingSet recicla paginas inativas de um processo com SetProcessWorkingSetSizeEx + EmptyWorkingSet.
-func TrimProcessWorkingSet(pid uint32) error {
-	if pid <= 4 {
-		return fmt.Errorf("PID protegido: %d", pid)
+const quotaHardWSMinDisable = 0x00000002
+
+func lookupProcessName(pid uint32) string {
+	entries, err := enumSnapshotProcesses()
+	if err != nil {
+		return fmt.Sprintf("PID %d", pid)
 	}
-	h, _, err := procOpenProcess.Call(procQueryLimitedInfo|procSetQuota, 0, uintptr(pid))
+	for i := range entries {
+		if entries[i].ProcessID == pid {
+			return syscall.UTF16ToString(entries[i].ExeFile[:])
+		}
+	}
+	return fmt.Sprintf("PID %d", pid)
+}
+
+// TrimProcessWorkingSetDelta recicla paginas fisicas do processo e retorna o delta real em Working Set.
+func TrimProcessWorkingSetDelta(pid uint32) (name string, beforeWS, afterWS uint64, err error) {
+	if pid <= 4 {
+		return "", 0, 0, fmt.Errorf("PID protegido: %d", pid)
+	}
+	name = lookupProcessName(pid)
+	beforeWS, _, _, _ = readProcDetails(pid, false)
+
+	h, _, openErr := procOpenProcess.Call(procQueryLimitedInfo|procSetQuota, 0, uintptr(pid))
 	if h == 0 {
-		return fmt.Errorf("OpenProcess(%d): %w", pid, err)
+		return name, beforeWS, beforeWS, fmt.Errorf("OpenProcess(%d): %w", pid, openErr)
 	}
 	defer procCloseHandle.Call(h)
 
 	maxNeg := ^uintptr(0)
-	procSetProcessWorkingSetEx.Call(h, maxNeg, maxNeg, 0)
+	procSetProcessWorkingSetEx.Call(h, maxNeg, maxNeg, quotaHardWSMinDisable)
 	r, _, callErr := procK32EmptyWorkingSet.Call(h)
 	if r == 0 {
 		r, _, callErr = procPsapiEmptyWorkingSet.Call(h)
 	}
+	procSetProcessWorkingSetEx.Call(h, maxNeg, maxNeg, 0)
 	if r == 0 {
-		return fmt.Errorf("EmptyWorkingSet(%d): %w", pid, callErr)
+		return name, beforeWS, beforeWS, fmt.Errorf("EmptyWorkingSet(%d): %w", pid, callErr)
 	}
-	return nil
+	time.Sleep(15 * time.Millisecond)
+	afterWS, _, _, okAfter := readProcDetails(pid, false)
+	if !okAfter {
+		afterWS = beforeWS
+	}
+	return name, beforeWS, afterWS, nil
+}
+
+// TrimProcessWorkingSet recicla paginas inativas de um processo com SetProcessWorkingSetSizeEx + EmptyWorkingSet.
+func TrimProcessWorkingSet(pid uint32) error {
+	_, _, _, err := TrimProcessWorkingSetDelta(pid)
+	return err
 }
 
 // TerminateProcessSafe encerra um processo descartavel recusando PID <= 4 e o proprio processo.
@@ -84,6 +116,14 @@ func ExecuteProcessPlan(cfg domain.Config, allowKill bool) (killed int, killedNa
 				}
 			}
 		}
+		recycled, recNames := RecycleLeakyPagefileHosts(snaps, GetForegroundPID())
+		killed += recycled
+		for _, n := range recNames {
+			if _, ok := seenNames[n]; !ok && len(killedNames) < 20 {
+				seenNames[n] = struct{}{}
+				killedNames = append(killedNames, n)
+			}
+		}
 	}
 
 	for _, s := range trimQueue {
@@ -105,7 +145,7 @@ func TrimSelf() {
 	}
 }
 
-// ListTopProcesses retorna os maiores consumidores de memoria privada com classificacao cirurgica.
+// ListTopProcesses retorna os maiores consumidores reais de RAM fisica (Working Set) com classificacao cirurgica.
 func ListTopProcesses(limit int, selfPID uint32, anomalyLimitMB int) ([]domain.ProcessInfo, error) {
 	snaps, deskOK, err := CollectProcessSnapshots()
 	if err != nil {
@@ -126,10 +166,15 @@ func ListTopProcesses(limit int, selfPID uint32, anomalyLimitMB int) ([]domain.P
 			Protected:       dec.Action == domain.ProcKeepSystem,
 			OpenWindow:      dec.Action != domain.ProcKill && (s.HasOpenWindow || dec.Reason == "janela aberta ou árvore ativa" || dec.Action == domain.ProcKeepAndTrim),
 			Killable:        dec.Action == domain.ProcKill,
-			Anomaly:         domain.IsAnomalyProcess(s.PrivateBytes, anomalyLimitMB),
+			Anomaly:         domain.IsAnomalyProcess(s.WorkingSetBytes, anomalyLimitMB) || domain.IsAnomalyProcess(s.PrivateBytes, anomalyLimitMB),
 		})
 	}
-	sort.Slice(list, func(i, j int) bool { return list[i].PrivateBytes > list[j].PrivateBytes })
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].WorkingSetBytes != list[j].WorkingSetBytes {
+			return list[i].WorkingSetBytes > list[j].WorkingSetBytes
+		}
+		return list[i].PrivateBytes > list[j].PrivateBytes
+	})
 	if limit > 0 && len(list) > limit {
 		list = list[:limit]
 	}

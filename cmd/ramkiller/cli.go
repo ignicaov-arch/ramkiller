@@ -23,7 +23,7 @@ func attachParentConsole() {
 }
 
 func handleCLI(args []string) (int, bool) {
-	var wantStatus, wantClean, wantFull, wantAudit, wantPause, wantJSON, wantHelp bool
+	var wantStatus, wantClean, wantFull, wantPagefile, wantAudit, wantPause, wantJSON, wantHelp bool
 	var renderQADir string
 
 	for _, raw := range args {
@@ -35,6 +35,8 @@ func handleCLI(args []string) (int, bool) {
 			wantClean = true
 		case a == "--clean-full":
 			wantFull = true
+		case a == "--clean-pagefile":
+			wantPagefile = true
 		case a == "--audit-procs":
 			wantAudit = true
 		case a == "--pause-until-reboot":
@@ -48,7 +50,7 @@ func handleCLI(args []string) (int, bool) {
 		}
 	}
 
-	if !wantStatus && !wantClean && !wantFull && !wantAudit && !wantPause && !wantHelp && renderQADir == "" {
+	if !wantStatus && !wantClean && !wantFull && !wantPagefile && !wantAudit && !wantPause && !wantHelp && renderQADir == "" {
 		return 0, false
 	}
 
@@ -73,6 +75,19 @@ func handleCLI(args []string) (int, bool) {
 	if wantAudit {
 		return runAuditCommand(cfg, wantJSON), true
 	}
+	if wantPagefile {
+		eng := sys.NewEngine()
+		res, err := eng.CleanPagefile(context.Background(), cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Erro ao limpar paginação: %v\n", err)
+			return 1, true
+		}
+		printOutput(res, wantJSON, func() {
+			fmt.Printf("RamKiller CLI: %s\n", domain.FormatCleanSummary(res))
+			fmt.Printf("Pagefile usado: %s -> %s\n", domain.FormatBytes(res.BeforePagefileBytes), domain.FormatBytes(res.AfterPagefileBytes))
+		})
+		return 0, true
+	}
 	if wantClean || wantFull {
 		mask := cfg.CleanMask
 		if wantFull {
@@ -86,7 +101,9 @@ func handleCLI(args []string) (int, bool) {
 		}
 		printOutput(res, wantJSON, func() {
 			fmt.Printf("RamKiller CLI: %s\n", domain.FormatCleanSummary(res))
-			fmt.Printf("RAM usada: %s -> %s\n", domain.FormatBytes(res.BeforeUsedBytes), domain.FormatBytes(res.AfterUsedBytes))
+			fmt.Printf("RAM usada: %s -> %s | Pagefile usado: %s -> %s\n",
+				domain.FormatBytes(res.BeforeUsedBytes), domain.FormatBytes(res.AfterUsedBytes),
+				domain.FormatBytes(res.BeforePagefileBytes), domain.FormatBytes(res.AfterPagefileBytes))
 		})
 		return 0, true
 	}
@@ -173,6 +190,6 @@ func printOutput(v any, asJSON bool, textFn func()) {
 }
 
 func printHelp() {
-	fmt.Println("RamKiller - Limpador nativo de RAM para Windows")
-	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --clean-full | --pause-until-reboot | --guardian | --json")
+	fmt.Println("RamKiller - Limpador nativo de RAM e Paginação para Windows")
+	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --clean-pagefile | --pause-until-reboot | --guardian | --json")
 }

@@ -29,7 +29,7 @@ func renderTabMemory(c *Canvas, x, w int, cfg domain.Config, hoverID string) []H
 		hits = append(hits, box)
 	}
 	hits = append(hits, drawCheckbox(c, "chk_kill_bg", x+14, 178, cfg.KillBackgroundApps, "Matar 2º plano ocioso (preserva abertos e núcleo)", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_allow_standby_auto", x+14, 206, cfg.AllowStandbyInAuto, "Permitir Lista de Espera* na limpeza automática", hoverID))
+	c.DrawText("• Limpar Acima de / A Cada sempre aplicam limpeza completa unificada.", FontUI, 11, false, ColorTextMuted, RECT{int32(x + 14), 206, int32(x + w - 14), 228}, dtLeft|dtVCenter|dtSingleLine)
 
 	c.FillRoundRect(x, 250, w, 162, RadiusCard, ColorBgCard)
 	c.StrokeRoundRect(x, 250, w, 162, RadiusCard, 1, ColorBorder)

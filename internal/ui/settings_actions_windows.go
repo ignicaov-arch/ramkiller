@@ -27,8 +27,6 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 		}
 	case "chk_kill_bg":
 		cfg.KillBackgroundApps = !cfg.KillBackgroundApps
-	case "chk_allow_standby_auto":
-		cfg.AllowStandbyInAuto = !cfg.AllowStandbyInAuto
 	case "chk_auto_pct":
 		cfg.AutoCleanThresholdEnabled = !cfg.AutoCleanThresholdEnabled
 	case "auto_pct_dec":

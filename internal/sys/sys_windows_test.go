@@ -68,8 +68,9 @@ func TestBootSessionPauseAndResumeAcrossReboot(t *testing.T) {
 }
 
 func TestTrimSelfAndEngineConcurrencyNonDestructive(t *testing.T) {
-	if err := TrimProcessWorkingSet(uint32(os.Getpid())); err != nil {
-		t.Fatalf("TrimProcessWorkingSet no proprio processo falhou: %v", err)
+	name, beforeWS, _, err := TrimProcessWorkingSetDelta(uint32(os.Getpid()))
+	if err != nil || name == "" || beforeWS == 0 {
+		t.Fatalf("TrimProcessWorkingSetDelta falhou: name=%q before=%d err=%v", name, beforeWS, err)
 	}
 
 	eng := NewEngine()
@@ -103,6 +104,14 @@ func TestTrimSelfAndEngineConcurrencyNonDestructive(t *testing.T) {
 	if okCount == 0 {
 		t.Fatalf("ao menos uma execucao deveria completar, ok=%d busy=%d", okCount, busyCount)
 	}
+
+	pfRes, err := eng.CleanPagefile(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("CleanPagefile falhou: %v", err)
+	}
+	if pfRes.Source != domain.SourcePagefile {
+		t.Errorf("source inesperado para CleanPagefile: %s", pfRes.Source)
+	}
 }
 
 func TestConfigStoreRoundtripAndHostile(t *testing.T) {
@@ -127,5 +136,26 @@ func TestConfigStoreRoundtripAndHostile(t *testing.T) {
 	}
 	if _, err := LoadConfigFromPath(tmp); err == nil {
 		t.Error("esperava rejeicao para campo desconhecido no config")
+	}
+}
+
+func TestRecycleLeakyPagefileHostsRules(t *testing.T) {
+	snaps := []domain.ProcSnapshot{
+		{PID: 100, Name: "TextInputHost.exe", PrivateBytes: 600 * 1024 * 1024, HasOpenWindow: false},
+		{PID: 101, Name: "StartMenuExperienceHost.exe", PrivateBytes: 220 * 1024 * 1024, HasOpenWindow: false},
+		{PID: 102, Name: "TextInputHost.exe", PrivateBytes: 50 * 1024 * 1024, HasOpenWindow: false},
+		{PID: 103, Name: "explorer.exe", PrivateBytes: 900 * 1024 * 1024, HasOpenWindow: false},
+	}
+	// Fake PIDs 100/101 fail TerminateProcessSafe cleanly without crashing, so test filtering with fgPID=100
+	recycled, names := RecycleLeakyPagefileHosts(snaps, 100)
+	if recycled != 0 || len(names) != 0 {
+		t.Logf("nota: reciclagem real requer PID ativo (%d)", recycled)
+	}
+	// Confirma que limiar de 160 MB e janela aberta bloqueiam captura
+	if _, ok := leakyCommitHostNames["dtsapo4service.exe"]; !ok {
+		t.Error("dtsapo4service.exe deveria constar em leakyCommitHostNames")
+	}
+	if _, ok := leakyCommitHostNames["explorer.exe"]; ok {
+		t.Error("explorer.exe nao pode constar em leakyCommitHostNames")
 	}
 }

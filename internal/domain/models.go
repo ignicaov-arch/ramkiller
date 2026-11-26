@@ -24,10 +24,11 @@ const (
 type CleanSource string
 
 const (
-	SourceManual CleanSource = "manual"
-	SourceAuto   CleanSource = "auto"
-	SourceHotkey CleanSource = "hotkey"
-	SourceCLI    CleanSource = "cli"
+	SourceManual   CleanSource = "manual"
+	SourceAuto     CleanSource = "auto"
+	SourceHotkey   CleanSource = "hotkey"
+	SourceCLI      CleanSource = "cli"
+	SourcePagefile CleanSource = "pagefile"
 )
 
 // Severity representa o nivel semantico do uso de RAM na bandeja e cards.
@@ -109,19 +110,22 @@ type MemoryStats struct {
 
 // CleanResult registra o resultado objetivo de uma rodada de limpeza.
 type CleanResult struct {
-	Source          CleanSource `json:"source"`
-	Mask            CleanRegion `json:"mask"`
-	BeforeUsedBytes uint64      `json:"beforeUsedBytes"`
-	AfterUsedBytes  uint64      `json:"afterUsedBytes"`
-	FreedBytes      uint64      `json:"freedBytes"`
-	KilledProcs     int         `json:"killedProcs"`
-	KilledNames     []string    `json:"killedNames,omitempty"`
-	TrimmedProcs    int         `json:"trimmedProcs"`
-	KernelExecuted  bool        `json:"kernelExecuted"`
-	Elevated        bool        `json:"elevated"`
-	DurationMs      int64       `json:"durationMs"`
-	RegionNames     []string    `json:"regionNames"`
-	Warnings        []string    `json:"warnings,omitempty"`
+	Source              CleanSource `json:"source"`
+	Mask                CleanRegion `json:"mask"`
+	BeforeUsedBytes     uint64      `json:"beforeUsedBytes"`
+	AfterUsedBytes      uint64      `json:"afterUsedBytes"`
+	FreedBytes          uint64      `json:"freedBytes"`
+	BeforePagefileBytes uint64      `json:"beforePagefileBytes"`
+	AfterPagefileBytes  uint64      `json:"afterPagefileBytes"`
+	PagefileFreedBytes  uint64      `json:"pagefileFreedBytes"`
+	KilledProcs         int         `json:"killedProcs"`
+	KilledNames         []string    `json:"killedNames,omitempty"`
+	TrimmedProcs        int         `json:"trimmedProcs"`
+	KernelExecuted      bool        `json:"kernelExecuted"`
+	Elevated            bool        `json:"elevated"`
+	DurationMs          int64       `json:"durationMs"`
+	RegionNames         []string    `json:"regionNames"`
+	Warnings            []string    `json:"warnings,omitempty"`
 }
 
 // RegionSpec descreve metadados de cada regiao de limpeza exibida ao usuario.

@@ -31,7 +31,8 @@ ramkiller.exe                     # Inicia elevado com painel principal e bandej
 ramkiller.exe --minimized         # Inicia minimizado na bandeja e ativa o guardião
 ramkiller.exe --status            # Exibe telemetria atual e Top 5 processos
 ramkiller.exe --audit-procs       # Mostra a classificação cirúrgica de cada processo
-ramkiller.exe --clean             # Executa limpeza profunda (processos + 8 regiões NT)
+ramkiller.exe --clean             # Limpeza completa unificada (2o plano, Working Set e Kernel)
+ramkiller.exe --clean-pagefile    # Limpa paginação real (pagefile.sys) e hosts vazadores
 ramkiller.exe --pause-until-reboot # Encerra painel e guardião até reiniciar o PC
 ramkiller.exe --json              # Formata saída CLI em JSON
 ```

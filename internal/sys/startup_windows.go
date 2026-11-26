@@ -115,7 +115,7 @@ func IsSkipUACTaskEnabled() bool {
 }
 
 // SetSkipUACTask cria ou remove a tarefa agendada de inicializacao elevada no logon.
-func SetSkipUACTask(enabled bool) error {
+func SetSkipUACTask(enabled bool, minimized bool) error {
 	_, _ = runSchtasks("/Delete", "/TN", legacyUACTask, "/F")
 	if !enabled {
 		out, err := runSchtasks("/Delete", "/TN", skipUACTask, "/F")
@@ -128,7 +128,10 @@ func SetSkipUACTask(enabled bool) error {
 	if err != nil {
 		return err
 	}
-	tr := fmt.Sprintf(`"%s" --minimized --boot`, exe)
+	tr := fmt.Sprintf(`"%s" --boot`, exe)
+	if minimized {
+		tr = fmt.Sprintf(`"%s" --minimized --boot`, exe)
+	}
 	out, err := runSchtasks("/Create", "/TN", skipUACTask, "/TR", tr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F")
 	if err != nil {
 		return fmt.Errorf("schtasks create falhou: %v (%s)", err, out)
@@ -140,7 +143,7 @@ func SetSkipUACTask(enabled bool) error {
 func SyncStartupRegistration(cfg domain.Config) {
 	_ = SetAutorun(cfg.LoadOnStartup, cfg.StartMinimized)
 	if IsElevated() {
-		_ = SetSkipUACTask(cfg.LoadOnStartup && cfg.SkipUAC)
+		_ = SetSkipUACTask(cfg.LoadOnStartup && cfg.SkipUAC, cfg.StartMinimized)
 	}
 }
 

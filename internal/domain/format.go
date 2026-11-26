@@ -74,11 +74,23 @@ func FormatCleanSummary(res CleanResult) string {
 		mode = "Modo Kernel"
 	}
 	procStats := fmt.Sprintf("%d reciclados", res.TrimmedProcs)
-	if res.KilledProcs > 0 {
+	if res.KilledProcs > 0 && res.TrimmedProcs > 0 {
 		procStats = fmt.Sprintf("%d encerrados · %d reciclados", res.KilledProcs, res.TrimmedProcs)
+	} else if res.KilledProcs > 0 {
+		procStats = fmt.Sprintf("%d encerrados", res.KilledProcs)
+	}
+	if res.Source == SourcePagefile {
+		if res.PagefileFreedBytes > 0 {
+			return fmt.Sprintf("Paginação limpa: -%s no Pagefile (%s · %d ms)", FormatBytes(res.PagefileFreedBytes), procStats, res.DurationMs)
+		}
+		return fmt.Sprintf("Paginação otimizada (%s · %d ms)", procStats, res.DurationMs)
+	}
+	if res.FreedBytes > 0 && res.PagefileFreedBytes >= 32*mb {
+		return fmt.Sprintf("+%s RAM · -%s Paginação (%s · %s · %d ms)",
+			FormatBytes(res.FreedBytes), FormatBytes(res.PagefileFreedBytes), mode, procStats, res.DurationMs)
 	}
 	if res.FreedBytes == 0 {
-		return fmt.Sprintf("Reciclagem concluída (%s · %s · %d ms)", mode, procStats, res.DurationMs)
+		return fmt.Sprintf("Limpeza concluída (%s · %s · %d ms)", mode, procStats, res.DurationMs)
 	}
 	return fmt.Sprintf("+%s liberados (%s · %s · %d ms)", FormatBytes(res.FreedBytes), mode, procStats, res.DurationMs)
 }
