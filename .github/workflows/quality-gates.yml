@@ -1,0 +1,33 @@
+name: Quality Gates Determinísticos
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-gates:
+    name: Porteiros Windows (Linhas <200L + Vet + Test + Build)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout seguro
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Setup Go 1.26
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.26'
+
+      - name: Verificar limite modular (<200L) e go vet
+        run: node scripts/verify_lines.mjs
+
+      - name: Executar testes com cobertura
+        run: go test -v -cover ./...
+
+      - name: Compilar binário Windows GUI sem CGO
+        run: node scripts/build.mjs

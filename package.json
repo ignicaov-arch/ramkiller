@@ -1,0 +1,12 @@
+{
+  "name": "ramkiller",
+  "version": "1.0.0",
+  "private": true,
+  "projectType": "cli",
+  "description": "Utilitario nativo Windows de bandeja para limpeza real e cirurgica de memoria RAM sem superfluos.",
+  "scripts": {
+    "lint": "node scripts/verify_lines.mjs",
+    "test": "node scripts/run_tests.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}
