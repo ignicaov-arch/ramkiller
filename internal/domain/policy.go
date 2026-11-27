@@ -50,6 +50,15 @@ var protectedNames = map[string]struct{}{
 	"nvcontainer.exe":           {},
 	"nvidia overlay.exe":        {},
 	"nvidia share.exe":          {},
+	"anydesk.exe":               {},
+	"teamviewer.exe":            {},
+	"teamviewer_service.exe":    {},
+	"teamviewer_desktop.exe":    {},
+	"tv_w32.exe":                {},
+	"tv_x64.exe":                {},
+	"parsecd.exe":               {},
+	"pservice.exe":              {},
+	"rustdesk.exe":              {},
 }
 
 var allRegionSpecs = []RegionSpec{

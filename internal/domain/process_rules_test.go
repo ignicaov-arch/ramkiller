@@ -27,6 +27,8 @@ func TestClassifyProcessesOpenVsBackgroundAndLanguageServer(t *testing.T) {
 		{PID: 810, ParentPID: 0, SessionID: 0, Name: "services.exe"},
 		{PID: 811, ParentPID: 810, SessionID: 1, Name: "RtkAudUService64.exe"},
 		{PID: 900, ParentPID: 100, SessionID: 1, Name: "PredatorSense.exe", HasOpenWindow: false},
+		{PID: 950, ParentPID: 100, SessionID: 1, Name: "AnyDesk.exe", HasOpenWindow: false, PrivateBytes: 120 * mb},
+		{PID: 951, ParentPID: 950, SessionID: 1, Name: "AnyDesk.exe", CmdLine: `"AnyDesk.exe" --control`, HasOpenWindow: false},
 	}
 
 	got := ClassifyProcesses(snaps, 211, true, 2560)
@@ -53,6 +55,8 @@ func TestClassifyProcessesOpenVsBackgroundAndLanguageServer(t *testing.T) {
 		802: ProcKeepAndTrim, // GPU/Renderer filho do Electron gerenciado por Node
 		811: ProcKeepSystem,  // Servico filho de services.exe
 		900: ProcKill,        // Bloatware
+		950: ProcKeepSystem,  // AnyDesk sem titulo Win32 protegido
+		951: ProcKeepSystem,  // AnyDesk --control na bandeja protegido
 	}
 
 	if got[210].Action != ProcKeepSystem {

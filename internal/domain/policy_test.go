@@ -65,6 +65,12 @@ func TestProtectedProcessAndAnomaly(t *testing.T) {
 	if IsProtectedProcess("chrome.exe", 1200, 999, 888, true) {
 		t.Error("chrome sem janela aberta nao e processo de nucleo")
 	}
+	if !IsProtectedProcess("AnyDesk.exe", 4500, 999, 888, true) {
+		t.Error("AnyDesk.exe deve ser protegido contra encerramento em segundo plano")
+	}
+	if !IsProtectedProcess("TeamViewer.exe", 4501, 999, 888, false) {
+		t.Error("TeamViewer.exe deve ser protegido contra encerramento em segundo plano")
+	}
 	if !IsAnomalyProcess(3*gb, 2560) {
 		t.Error("3 GB deve sinalizar anomalia para teto 2560 MB")
 	}
