@@ -71,6 +71,11 @@ var protectedNames = map[string]struct{}{
 	"openvpn.exe":               {},
 	"openvpnserv.exe":           {},
 	"zerotier-one_x64.exe":      {},
+	"adb.exe":                   {},
+	"nox_adb.exe":               {},
+	"hd-adb.exe":                {},
+	"mumunxmain.exe":            {},
+	"mumuplayer.exe":            {},
 }
 
 var allRegionSpecs = []RegionSpec{
