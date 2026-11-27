@@ -23,20 +23,27 @@ type AppController struct {
 	stats             domain.MemoryStats
 	engine            *sys.Engine
 	tray              *TrayHost
-	mainHWND          uintptr
-	settingsHWND      uintptr
-	mainHits          []HitRegion
-	settingsHits      []HitRegion
-	mainHover         string
-	settingsHover     string
-	settingsTab       int
-	lastSummary       string
-	startedUnix       int64
-	lastCleanUnix     int64
-	lastIconPct       int
-	tickCount         uint64
-	pendingResult     *domain.CleanResult
-	taskbarCreatedMsg uint32
+	mainHWND           uintptr
+	settingsHWND       uintptr
+	mainHits           []HitRegion
+	settingsHits       []HitRegion
+	mainHover          string
+	settingsHover      string
+	settingsTab        int
+	lastSummary        string
+	startedUnix        int64
+	lastCleanUnix      int64
+	lastIconPct        int
+	tickCount          uint64
+	pendingResult      *domain.CleanResult
+	taskbarCreatedMsg  uint32
+	procScrollY        int
+	procMaxScroll      int
+	scrollTrack        RECT
+	scrollThumb        RECT
+	scrollDragging     bool
+	scrollDragStartY   int32
+	scrollDragStartVal int
 }
 
 // FocusRunningInstance traz a janela do RamKiller ja em execucao para frente sem exigir novo UAC.

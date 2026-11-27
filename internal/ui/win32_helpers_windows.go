@@ -55,6 +55,8 @@ var (
 	procLoadImageW                = sys.User32.NewProc("LoadImageW")
 	procAllowSetForegroundWindow  = sys.User32.NewProc("AllowSetForegroundWindow")
 	procChangeWindowMsgFilterEx   = sys.User32.NewProc("ChangeWindowMessageFilterEx")
+	procSetCapture                = sys.User32.NewProc("SetCapture")
+	procReleaseCapture            = sys.User32.NewProc("ReleaseCapture")
 	procDwmSetWindowAttribute    = sys.Dwmapi.NewProc("DwmSetWindowAttribute")
 	procChooseColorW           = sys.Comdlg32.NewProc("ChooseColorW")
 	procGetModuleHandleW       = sys.Kernel32.NewProc("GetModuleHandleW")

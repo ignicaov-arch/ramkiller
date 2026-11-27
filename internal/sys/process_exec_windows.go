@@ -5,7 +5,6 @@ package sys
 import (
 	"fmt"
 	"os"
-	"sort"
 	"syscall"
 	"time"
 
@@ -161,40 +160,4 @@ func TrimSelf() {
 			procPsapiEmptyWorkingSet.Call(h)
 		}
 	}
-}
-
-// ListTopProcesses retorna os maiores consumidores reais de RAM fisica (Working Set) com classificacao cirurgica.
-func ListTopProcesses(limit int, selfPID uint32, anomalyLimitMB int) ([]domain.ProcessInfo, error) {
-	snaps, deskOK, err := CollectProcessSnapshots()
-	if err != nil {
-		return nil, err
-	}
-	decisions := domain.ClassifyProcesses(snaps, selfPID, deskOK, anomalyLimitMB)
-	list := make([]domain.ProcessInfo, 0, len(snaps))
-	for _, s := range snaps {
-		if s.PID <= 4 || (s.WorkingSetBytes == 0 && s.PrivateBytes == 0) {
-			continue
-		}
-		dec := decisions[s.PID]
-		list = append(list, domain.ProcessInfo{
-			PID:             s.PID,
-			Name:            s.Name,
-			PrivateBytes:    s.PrivateBytes,
-			WorkingSetBytes: s.WorkingSetBytes,
-			Protected:       dec.Action == domain.ProcKeepSystem,
-			OpenWindow:      dec.Action != domain.ProcKill && (s.HasOpenWindow || dec.Reason == "janela aberta ou árvore ativa" || dec.Action == domain.ProcKeepAndTrim),
-			Killable:        dec.Action == domain.ProcKill,
-			Anomaly:         domain.IsAnomalyProcess(s.WorkingSetBytes, anomalyLimitMB) || domain.IsAnomalyProcess(s.PrivateBytes, anomalyLimitMB),
-		})
-	}
-	sort.Slice(list, func(i, j int) bool {
-		if list[i].WorkingSetBytes != list[j].WorkingSetBytes {
-			return list[i].WorkingSetBytes > list[j].WorkingSetBytes
-		}
-		return list[i].PrivateBytes > list[j].PrivateBytes
-	})
-	if limit > 0 && len(list) > limit {
-		list = list[:limit]
-	}
-	return list, nil
 }

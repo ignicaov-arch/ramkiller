@@ -72,7 +72,12 @@ func (a *AppController) mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 		hdc, _, _ := procBeginPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
 		if hdc != 0 {
 			cfg := a.getConfig()
-			canvas, hits := RenderMainCanvas(a.stats, cfg, a.lastSummary, a.mainHover, a.engine.IsCleaning())
+			layout := computeProcListLayout(len(a.stats.TopProcesses), a.procScrollY, 16, mainWinWidth-32)
+			a.procScrollY = layout.ScrollY
+			a.procMaxScroll = layout.MaxScroll
+			a.scrollTrack = layout.TrackRect
+			a.scrollThumb = layout.ThumbRect
+			canvas, hits := RenderMainCanvas(a.stats, cfg, a.lastSummary, a.mainHover, a.engine.IsCleaning(), a.procScrollY)
 			a.mainHits = hits
 			canvas.BlitTo(hdc)
 			canvas.Close()
@@ -80,8 +85,11 @@ func (a *AppController) mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 		}
 		return 0
 	case WM_MOUSEMOVE:
-		x := int32(int16(lParam & 0xFFFF))
 		y := int32(int16((lParam >> 16) & 0xFFFF))
+		if a.handleMainScrollDrag(y) {
+			return 0
+		}
+		x := int32(int16(lParam & 0xFFFF))
 		if hit, ok := FindHit(a.mainHits, x, y); ok {
 			if a.mainHover != hit.ID {
 				a.mainHover = hit.ID
@@ -94,12 +102,29 @@ func (a *AppController) mainWndProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 			procInvalidateRect.Call(hwnd, 0, 0)
 		}
 		return 0
+	case WM_LBUTTONDOWN:
+		x := int32(int16(lParam & 0xFFFF))
+		y := int32(int16((lParam >> 16) & 0xFFFF))
+		a.handleMainLButtonDown(x, y)
+		return 0
 	case WM_LBUTTONUP:
+		if a.stopScrollDrag() {
+			return 0
+		}
 		x := int32(int16(lParam & 0xFFFF))
 		y := int32(int16((lParam >> 16) & 0xFFFF))
 		if hit, ok := FindHit(a.mainHits, x, y); ok {
 			a.handleMainClick(hit)
 		}
+		return 0
+	case WM_CAPTURECHANGED:
+		a.scrollDragging = false
+		return 0
+	case WM_MOUSEWHEEL:
+		a.handleMainWheel(wParam)
+		return 0
+	case WM_KEYDOWN:
+		a.handleMainKeyDown(wParam)
 		return 0
 	case WM_TIMER:
 		a.onTick()

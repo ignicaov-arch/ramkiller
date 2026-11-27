@@ -10,17 +10,22 @@ import (
 	"github.com/ignicaov-arch/ramkiller/internal/sys"
 )
 
-func (a *AppController) refreshStats(includeTopProcs bool) {
+func (a *AppController) refreshStats(includeAllProcs bool) {
 	cfg := a.getConfig()
 	topN := 0
-	if includeTopProcs {
-		topN = 5
+	if includeAllProcs {
+		topN = -1
 	}
 	if st, err := sys.ReadMemoryStats(topN, cfg.AnomalyLimitMB); err == nil {
-		if !includeTopProcs && len(st.TopProcesses) == 0 {
+		if !includeAllProcs && len(st.TopProcesses) == 0 {
 			st.TopProcesses = a.stats.TopProcesses
 		}
+		a.mu.Lock()
 		a.stats = st
+		a.mu.Unlock()
+		if includeAllProcs {
+			a.clampProcScroll()
+		}
 	}
 }
 
@@ -41,7 +46,7 @@ func (a *AppController) onTick() {
 	}
 	a.tickCount++
 	vis, _, _ := procIsWindowVisible.Call(a.mainHWND)
-	a.refreshStats(vis != 0 && a.tickCount%3 == 0)
+	a.refreshStats(vis != 0 && !a.scrollDragging && a.tickCount%3 == 0)
 	cfg := a.getConfig()
 	pct := a.stats.Physical.Percent
 

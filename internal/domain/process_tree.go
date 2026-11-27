@@ -134,15 +134,14 @@ func buildEssentialTree(snaps []ProcSnapshot, children map[uint32][]uint32) map[
 	return ess
 }
 
-func buildActiveNetTree(snaps []ProcSnapshot, byPID map[uint32]ProcSnapshot, children map[uint32][]uint32) map[uint32]bool {
+func buildActiveNetTree(snaps []ProcSnapshot, byPID map[uint32]ProcSnapshot, children map[uint32][]uint32, openTree map[uint32]bool) map[uint32]bool {
 	netTree := make(map[uint32]bool)
 	var queue []uint32
 	for _, s := range snaps {
 		if !s.HasActiveNet && !s.IsNetService {
 			continue
 		}
-		norm := strings.ToLower(strings.TrimSpace(s.Name))
-		if _, isBloat := bloatwareNames[norm]; isBloat {
+		if hasBloatwareAncestor(s.PID, byPID, openTree) {
 			continue
 		}
 		markUserAncestors(s.PID, netTree, &queue, byPID)

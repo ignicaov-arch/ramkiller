@@ -97,6 +97,8 @@ type ProcessInfo struct {
 	OpenWindow      bool   `json:"openWindow"`
 	Killable        bool   `json:"killable"`
 	Anomaly         bool   `json:"anomaly"`
+	Description     string `json:"description,omitempty"`
+	NetProtected    bool   `json:"netProtected,omitempty"`
 }
 
 // MemoryStats consolida telemetria em tempo real da memoria do sistema.

@@ -175,8 +175,12 @@ func ReadMemoryStats(topN int, anomalyLimitMB int) (domain.MemoryStats, error) {
 		stats.SystemCache = calcBank(cacheUsed, ms.TotalPhys)
 	}
 
-	if topN > 0 {
-		procs, _ := ListTopProcesses(topN, uint32(os.Getpid()), anomalyLimitMB)
+	if topN != 0 {
+		listLimit := topN
+		if topN < 0 {
+			listLimit = 0
+		}
+		procs, _ := ListTopProcesses(listLimit, uint32(os.Getpid()), anomalyLimitMB)
 		stats.TopProcesses = procs
 	}
 	stats.Elevated = IsElevated()

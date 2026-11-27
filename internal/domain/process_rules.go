@@ -142,7 +142,7 @@ func decideSingleProc(
 	if essentialTree[s.PID] {
 		return ProcDecision{Action: ProcKeepAndTrim, Reason: "aplicativo principal protegido"}
 	}
-	if (s.HasActiveNet || s.IsNetService || netTree[s.PID]) && !isBloatwareName(norm) {
+	if (s.HasActiveNet || s.IsNetService || netTree[s.PID]) && !isBloatwareName(norm) && !hasBloatwareAncestor(s.PID, byPID, openTree) {
 		return ProcDecision{Action: ProcKeepAndTrim, Reason: "conexão de rede ativa preservada"}
 	}
 	if desktopEnumOK {
@@ -182,7 +182,7 @@ func ClassifyProcesses(snaps []ProcSnapshot, selfPID uint32, desktopEnumOK bool,
 	svcTree := buildServiceTree(snaps, children, byPID)
 	openTree := buildOpenTree(snaps, byPID, children)
 	essentialTree := buildEssentialTree(snaps, children)
-	netTree := buildActiveNetTree(snaps, byPID, children)
+	netTree := buildActiveNetTree(snaps, byPID, children, openTree)
 	bestHub := findActiveLanguageServerHubs(snaps, brokers)
 	decisions := make(map[uint32]ProcDecision, len(snaps))
 	for _, s := range snaps {

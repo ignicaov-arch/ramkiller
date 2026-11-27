@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	mainWinWidth  = 460
-	mainWinHeight = 638
+	mainWinWidth  = 500
+	mainWinHeight = 720
 )
 
 func severityPalette(pct int, cfg domain.Config) (uint32, uint32) {
@@ -25,19 +25,19 @@ func severityPalette(pct int, cfg domain.Config) (uint32, uint32) {
 }
 
 func drawMemoryBankCard(c *Canvas, x, y, w int, title string, bank domain.BankStat, cfg domain.Config) {
-	const cardH = 66
+	const cardH = 62
 	const pad = 12
 	c.FillRoundRect(x, y, w, cardH, RadiusCard, ColorBgCard)
 	c.StrokeRoundRect(x, y, w, cardH, RadiusCard, 1, ColorBorder)
 
 	accent, soft := severityPalette(bank.Percent, cfg)
-	c.DrawText(title, FontUI, 13, true, ColorTextPrimary, RECT{int32(x + pad), int32(y + 8), int32(x + w - 90), int32(y + 26)}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText(title, FontUI, 13, true, ColorTextPrimary, RECT{int32(x + pad), int32(y + 7), int32(x + w - 90), int32(y + 25)}, dtLeft|dtVCenter|dtSingleLine)
 
 	badgeW := 48
-	c.FillRoundRect(x+w-pad-badgeW, y+8, badgeW, 20, 6, soft)
-	c.DrawText(fmt.Sprintf("%d%%", bank.Percent), FontUI, 12, true, accent, RECT{int32(x + w - pad - badgeW), int32(y + 8), int32(x + w - pad), int32(y + 28)}, dtCenter|dtVCenter|dtSingleLine)
+	c.FillRoundRect(x+w-pad-badgeW, y+7, badgeW, 20, 6, soft)
+	c.DrawText(fmt.Sprintf("%d%%", bank.Percent), FontUI, 12, true, accent, RECT{int32(x + w - pad - badgeW), int32(y + 7), int32(x + w - pad), int32(y + 27)}, dtCenter|dtVCenter|dtSingleLine)
 
-	barX, barY, barW, barH := x+pad, y+34, w-pad*2, 6
+	barX, barY, barW, barH := x+pad, y+31, w-pad*2, 6
 	c.FillRoundRect(barX, barY, barW, barH, 3, ColorBgBase)
 	fillW := (barW * bank.Percent) / 100
 	if fillW < 6 && bank.Percent > 0 {
@@ -52,70 +52,19 @@ func drawMemoryBankCard(c *Canvas, x, y, w int, title string, bank domain.BankSt
 		domain.FormatBytes(bank.FreeBytes),
 		domain.FormatBytes(bank.TotalBytes),
 	)
-	c.DrawText(sub, FontUI, 11, false, ColorTextMuted, RECT{int32(x + pad), int32(y + 44), int32(x + w - pad), int32(y + 60)}, dtLeft|dtVCenter|dtSingleLine)
+	c.DrawText(sub, FontUI, 11, false, ColorTextMuted, RECT{int32(x + pad), int32(y + 41), int32(x + w - pad), int32(y + 57)}, dtLeft|dtVCenter|dtSingleLine)
 }
 
-func drawProcessesCard(c *Canvas, x, y, w int, procs []domain.ProcessInfo, hoverID string) []HitRegion {
-	const cardH = 198
-	const pad = 12
-	var hits []HitRegion
-
-	c.FillRoundRect(x, y, w, cardH, RadiusCard, ColorBgCard)
-	c.StrokeRoundRect(x, y, w, cardH, RadiusCard, 1, ColorBorder)
-	c.DrawText("Top 5 Processos na RAM", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + pad), int32(y + 10), int32(x + w - pad), int32(y + 28)}, dtLeft|dtVCenter|dtSingleLine)
-
-	if len(procs) == 0 {
-		c.DrawText("Nenhum processo acima do filtro.", FontUI, 12, false, ColorTextMuted, RECT{int32(x + pad), int32(y + 60), int32(x + w - pad), int32(y + 100)}, dtCenter|dtVCenter|dtSingleLine)
-		return hits
-	}
-
-	rowY := y + 34
-	for i, p := range procs {
-		if i >= 5 {
-			break
-		}
-		if i > 0 {
-			c.FillRect(x+pad, rowY-2, w-pad*2, 1, ColorBorder)
-		}
-		nameColor := ColorTextPrimary
-		if p.Anomaly {
-			nameColor = ColorAmber
-		}
-		label := fmt.Sprintf("%s (%d)", p.Name, p.PID)
-		c.DrawText(label, FontUI, 12, false, nameColor, RECT{int32(x + pad), int32(rowY), int32(x + w - 220), int32(rowY + 28)}, dtLeft|dtVCenter|dtSingleLine|dtEndEllipsis)
-
-		memColor := ColorTextMuted
-		if p.Anomaly {
-			memColor = ColorRed
-		}
-		c.DrawText(domain.FormatBytes(p.WorkingSetBytes), FontUI, 11, true, memColor, RECT{int32(x + w - 218), int32(rowY), int32(x + w - 150), int32(rowY + 28)}, dtRight|dtVCenter|dtSingleLine)
-
-		trimBtn := drawButton(c, fmt.Sprintf("trim_pid_%d", p.PID), x+w-pad-130, rowY+3, 62, 22, "Reciclar", ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID)
-		trimBtn.Arg = p.PID
-		hits = append(hits, trimBtn)
-
-		sx := x + w - pad - 62
-		if p.Killable {
-			killBtn := drawButton(c, fmt.Sprintf("kill_pid_%d", p.PID), sx, rowY+3, 62, 22, "Matar", ColorRedSoft, ColorRed, ColorRed, true, hoverID)
-			killBtn.Arg = p.PID
-			hits = append(hits, killBtn)
-		} else if p.OpenWindow {
-			c.FillRoundRect(sx, rowY+4, 62, 20, 6, ColorGreenSoft)
-			c.DrawText("Aberto", FontUI, 11, false, ColorGreen, RECT{int32(sx), int32(rowY + 4), int32(sx + 62), int32(rowY + 24)}, dtCenter|dtVCenter|dtSingleLine)
-		} else {
-			c.FillRoundRect(sx, rowY+4, 62, 20, 6, ColorWhiteSoft)
-			c.DrawText("Sistema", FontUI, 11, false, ColorTextMuted, RECT{int32(sx), int32(rowY + 4), int32(sx + 62), int32(rowY + 24)}, dtCenter|dtVCenter|dtSingleLine)
-		}
-		rowY += 32
-	}
-	return hits
-}
-
-// RenderMainCanvas desenha todo o Painel Principal do RamKiller em buffer double-buffered.
-func RenderMainCanvas(stats domain.MemoryStats, cfg domain.Config, lastSummary, hoverID string, cleaning bool) (*Canvas, []HitRegion) {
+// RenderMainCanvas desenha o Painel Principal do RamKiller com rolagem completa da lista de processos.
+func RenderMainCanvas(stats domain.MemoryStats, cfg domain.Config, lastSummary, hoverID string, cleaning bool, scrollY ...int) (*Canvas, []HitRegion) {
 	c := NewCanvas(mainWinWidth, mainWinHeight)
 	c.ClearOpaque(ColorBgBase)
 	var hits []HitRegion
+
+	curScroll := 0
+	if len(scrollY) > 0 {
+		curScroll = scrollY[0]
+	}
 
 	const pad = 16
 	const contentW = mainWinWidth - pad*2
@@ -129,11 +78,12 @@ func RenderMainCanvas(stats domain.MemoryStats, cfg domain.Config, lastSummary, 
 	}
 	hits = append(hits, drawButton(c, "open_settings", mainWinWidth-pad-106, 15, 106, 26, "Configurações", ColorBgElevated, ColorBorder, ColorTextPrimary, false, hoverID))
 
-	drawMemoryBankCard(c, pad, 54, contentW, "Memória Física", stats.Physical, cfg)
-	drawMemoryBankCard(c, pad, 128, contentW, "Arquivo de Paginação (Pagefile)", stats.Pagefile, cfg)
-	drawMemoryBankCard(c, pad, 202, contentW, "Cache do Sistema", stats.SystemCache, cfg)
+	drawMemoryBankCard(c, pad, 50, contentW, "Memória Física", stats.Physical, cfg)
+	drawMemoryBankCard(c, pad, 120, contentW, "Arquivo de Paginação (Pagefile)", stats.Pagefile, cfg)
+	drawMemoryBankCard(c, pad, 190, contentW, "Cache do Sistema", stats.SystemCache, cfg)
 
-	hits = append(hits, drawProcessesCard(c, pad, 278, contentW, stats.TopProcesses, hoverID)...)
+	procHits, _ := drawProcessesCardFull(c, pad, contentW, stats.TopProcesses, curScroll, hoverID)
+	hits = append(hits, procHits...)
 
 	statusTxt := lastSummary
 	if cleaning {
@@ -141,12 +91,12 @@ func RenderMainCanvas(stats domain.MemoryStats, cfg domain.Config, lastSummary, 
 	} else if statusTxt == "" {
 		statusTxt = "Pronto · 1 clique limpa RAM, Paginação, 2º plano e Kernel."
 	}
-	c.FillRoundRect(pad, 486, contentW, 30, 8, ColorBgCard)
-	c.StrokeRoundRect(pad, 486, contentW, 30, 8, 1, ColorBorder)
-	c.DrawText(statusTxt, FontUI, 11, false, ColorTextMuted, RECT{pad + 10, 486, mainWinWidth - pad - 10, 516}, dtLeft|dtVCenter|dtSingleLine|dtEndEllipsis)
+	c.FillRoundRect(pad, 582, contentW, 30, 8, ColorBgCard)
+	c.StrokeRoundRect(pad, 582, contentW, 30, 8, 1, ColorBorder)
+	c.DrawText(statusTxt, FontUI, 11, false, ColorTextMuted, RECT{pad + 10, 582, mainWinWidth - pad - 10, 612}, dtLeft|dtVCenter|dtSingleLine|dtEndEllipsis)
 
-	hits = append(hits, drawButton(c, "clean_now", pad, 528, contentW, 42, "Limpar Tudo Agora", ColorGreen, 0, ColorBgBase, true, hoverID))
-	hits = append(hits, drawButton(c, "stop_until_reboot", pad, 580, contentW, 38, "Encerrar até Reiniciar o PC", ColorRedSoft, ColorRed, ColorRed, true, hoverID))
+	hits = append(hits, drawButton(c, "clean_now", pad, 622, contentW, 42, "Limpar Tudo Agora", ColorGreen, 0, ColorBgBase, true, hoverID))
+	hits = append(hits, drawButton(c, "stop_until_reboot", pad, 672, contentW, 36, "Encerrar até Reiniciar o PC", ColorRedSoft, ColorRed, ColorRed, true, hoverID))
 
 	return c, hits
 }

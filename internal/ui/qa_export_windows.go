@@ -12,7 +12,7 @@ import (
 // RenderQAScreenshots gera imagens PNG reais do Painel, das 4 abas e da bandeja para auditoria visual.
 func RenderQAScreenshots(outDir string) error {
 	cfg := domain.DefaultConfig()
-	stats, err := sys.ReadMemoryStats(5, cfg.AnomalyLimitMB)
+	stats, err := sys.ReadMemoryStats(-1, cfg.AnomalyLimitMB)
 	if err != nil {
 		stats = domain.MemoryStats{
 			Physical:    domain.BankStat{UsedBytes: 8 * 1024 * 1024 * 1024, FreeBytes: 8 * 1024 * 1024 * 1024, TotalBytes: 16 * 1024 * 1024 * 1024, Percent: 50},
