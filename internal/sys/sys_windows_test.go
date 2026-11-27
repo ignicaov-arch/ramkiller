@@ -93,6 +93,9 @@ func TestTrimSelfAndEngineConcurrencyNonDestructive(t *testing.T) {
 				if res.TrimmedProcs < 1 {
 					t.Errorf("esperava ao menos 1 processo reciclado, obteve %d", res.TrimmedProcs)
 				}
+				if res.BeforePagefileBytes == 0 || res.AfterPagefileBytes == 0 {
+					t.Errorf("esperava telemetria de pagefile preenchida na limpeza unificada: before=%d after=%d", res.BeforePagefileBytes, res.AfterPagefileBytes)
+				}
 			} else if errors.Is(err, ErrCleanInProgress) {
 				busyCount++
 			} else {
@@ -103,14 +106,6 @@ func TestTrimSelfAndEngineConcurrencyNonDestructive(t *testing.T) {
 	wg.Wait()
 	if okCount == 0 {
 		t.Fatalf("ao menos uma execucao deveria completar, ok=%d busy=%d", okCount, busyCount)
-	}
-
-	pfRes, err := eng.CleanPagefile(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("CleanPagefile falhou: %v", err)
-	}
-	if pfRes.Source != domain.SourcePagefile {
-		t.Errorf("source inesperado para CleanPagefile: %s", pfRes.Source)
 	}
 }
 

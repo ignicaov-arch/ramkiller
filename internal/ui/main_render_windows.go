@@ -137,17 +137,15 @@ func RenderMainCanvas(stats domain.MemoryStats, cfg domain.Config, lastSummary, 
 
 	statusTxt := lastSummary
 	if cleaning {
-		statusTxt = "Executando limpeza completa (processos, Working Set e Kernel)..."
+		statusTxt = "Limpando RAM, Paginação, 2º plano e Kernel..."
 	} else if statusTxt == "" {
-		statusTxt = "Pronto · Limpar Memória executa tudo; Reciclar e Paginação disponíveis."
+		statusTxt = "Pronto · 1 clique limpa RAM, Paginação, 2º plano e Kernel."
 	}
 	c.FillRoundRect(pad, 486, contentW, 30, 8, ColorBgCard)
 	c.StrokeRoundRect(pad, 486, contentW, 30, 8, 1, ColorBorder)
 	c.DrawText(statusTxt, FontUI, 11, false, ColorTextMuted, RECT{pad + 10, 486, mainWinWidth - pad - 10, 516}, dtLeft|dtVCenter|dtSingleLine|dtEndEllipsis)
 
-	btnW := (contentW - 10) / 2
-	hits = append(hits, drawButton(c, "clean_now", pad, 528, btnW, 42, "Limpar Memória", ColorGreen, 0, ColorBgBase, true, hoverID))
-	hits = append(hits, drawButton(c, "clean_pagefile", pad+btnW+10, 528, btnW, 42, "Limpar Paginação", ColorBlueSoft, ColorBlue, ColorTextPrimary, true, hoverID))
+	hits = append(hits, drawButton(c, "clean_now", pad, 528, contentW, 42, "Limpar Tudo Agora", ColorGreen, 0, ColorBgBase, true, hoverID))
 	hits = append(hits, drawButton(c, "stop_until_reboot", pad, 580, contentW, 38, "Encerrar até Reiniciar o PC", ColorRedSoft, ColorRed, ColorRed, true, hoverID))
 
 	return c, hits

@@ -106,12 +106,8 @@ func TestFormattingAndTooltipUTF16Cap(t *testing.T) {
 	if len(AllRegionSpecs()) != 8 || len(RegionLabels(MaskAll)) != 8 {
 		t.Errorf("esperava 8 regioes configuradas")
 	}
-	sum := FormatCleanSummary(CleanResult{FreedBytes: 2 * gb, KilledProcs: 7, TrimmedProcs: 140, KernelExecuted: true, DurationMs: 35})
-	if !strings.Contains(sum, "2.00 GB") || !strings.Contains(sum, "7 encerrados") || !strings.Contains(sum, "Modo Kernel") {
-		t.Errorf("resumo inesperado: %q", sum)
-	}
-	pfSum := FormatCleanSummary(CleanResult{Source: SourcePagefile, PagefileFreedBytes: 2 * gb, KilledProcs: 3, DurationMs: 18})
-	if !strings.Contains(pfSum, "Paginação limpa") || !strings.Contains(pfSum, "2.00 GB") || !strings.Contains(pfSum, "3 encerrados") {
-		t.Errorf("resumo pagefile inesperado: %q", pfSum)
+	sum := FormatCleanSummary(CleanResult{FreedBytes: 2 * gb, PagefileFreedBytes: 512 * mb, KilledProcs: 7, TrimmedProcs: 140, KernelExecuted: true, DurationMs: 35})
+	if !strings.Contains(sum, "2.00 GB RAM") || !strings.Contains(sum, "512 MB Paginação") || !strings.Contains(sum, "7 encerrados") || !strings.Contains(sum, "Modo Kernel") {
+		t.Errorf("resumo unificado inesperado: %q", sum)
 	}
 }

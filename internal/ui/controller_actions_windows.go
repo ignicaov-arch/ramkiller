@@ -73,9 +73,7 @@ func (a *AppController) runAsyncClean(execFn func() (domain.CleanResult, error))
 		if err == nil {
 			a.mu.Lock()
 			a.pendingResult = &res
-			if res.Source != domain.SourcePagefile {
-				a.lastCleanUnix = time.Now().Unix()
-			}
+			a.lastCleanUnix = time.Now().Unix()
 			a.mu.Unlock()
 		}
 		procPostMessageW.Call(a.mainHWND, wmAppCleanDone, 0, 0)
@@ -85,24 +83,12 @@ func (a *AppController) runAsyncClean(execFn func() (domain.CleanResult, error))
 func (a *AppController) triggerClean(src domain.CleanSource, overrideMask domain.CleanRegion) {
 	cfg := a.getConfig()
 	if src == domain.SourceManual && cfg.ConfirmClean {
-		if !ConfirmBox(a.mainHWND, "Confirmar Limpeza", "Deseja executar a limpeza completa (2º plano, Working Set e Kernel) agora?") {
+		if !ConfirmBox(a.mainHWND, "Confirmar Limpeza", "Deseja limpar RAM, Paginação, 2º plano e Kernel agora?") {
 			return
 		}
 	}
 	a.runAsyncClean(func() (domain.CleanResult, error) {
 		return a.engine.Clean(context.Background(), src, cfg, overrideMask)
-	})
-}
-
-func (a *AppController) triggerPagefileClean() {
-	cfg := a.getConfig()
-	if cfg.ConfirmClean {
-		if !ConfirmBox(a.mainHWND, "Limpar Paginação", "Deseja limpar o arquivo de paginação e caches do sistema agora?") {
-			return
-		}
-	}
-	a.runAsyncClean(func() (domain.CleanResult, error) {
-		return a.engine.CleanPagefile(context.Background(), cfg)
 	})
 }
 

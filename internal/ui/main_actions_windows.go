@@ -24,8 +24,6 @@ func (a *AppController) handleMainClick(hit HitRegion) {
 	switch {
 	case hit.ID == "clean_now":
 		a.triggerClean(domain.SourceManual, 0)
-	case hit.ID == "clean_pagefile":
-		a.triggerPagefileClean()
 	case hit.ID == "stop_until_reboot":
 		a.shutdownApp(true)
 	case hit.ID == "open_settings":
@@ -93,8 +91,6 @@ func (a *AppController) handleTrayMenuCommand(cmd uint32) {
 		a.toggleMainWindow()
 	case cmd == cmdTrayClean:
 		a.triggerClean(domain.SourceManual, 0)
-	case cmd == cmdTrayCleanPagefile:
-		a.triggerPagefileClean()
 	case cmd == cmdTraySettings:
 		a.openSettingsWindow()
 	case cmd == cmdTrayPauseReboot:

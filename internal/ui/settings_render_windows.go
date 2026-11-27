@@ -107,7 +107,7 @@ func renderTabGeneral(c *Canvas, x, w int, cfg domain.Config, elevated bool, hov
 func trayActionName(a domain.TrayAction) string {
 	switch a {
 	case domain.ActionCleanMemory:
-		return "Limpar Memória"
+		return "Limpar Tudo Agora"
 	case domain.ActionOpenTaskMgr:
 		return "Gerenciador de Tarefas"
 	default:

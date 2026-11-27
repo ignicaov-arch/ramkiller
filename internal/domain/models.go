@@ -24,11 +24,10 @@ const (
 type CleanSource string
 
 const (
-	SourceManual   CleanSource = "manual"
-	SourceAuto     CleanSource = "auto"
-	SourceHotkey   CleanSource = "hotkey"
-	SourceCLI      CleanSource = "cli"
-	SourcePagefile CleanSource = "pagefile"
+	SourceManual CleanSource = "manual"
+	SourceAuto   CleanSource = "auto"
+	SourceHotkey CleanSource = "hotkey"
+	SourceCLI    CleanSource = "cli"
 )
 
 // Severity representa o nivel semantico do uso de RAM na bandeja e cards.

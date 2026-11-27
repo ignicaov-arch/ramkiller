@@ -67,7 +67,7 @@ func FormatTooltip(stats MemoryStats) string {
 	return TruncateUTF16(raw, 120)
 }
 
-// FormatCleanSummary resume o resultado da limpeza para UI e balao da bandeja.
+// FormatCleanSummary resume o resultado da limpeza unificada para UI e balao da bandeja.
 func FormatCleanSummary(res CleanResult) string {
 	mode := "Modo Usuário"
 	if res.KernelExecuted {
@@ -79,20 +79,18 @@ func FormatCleanSummary(res CleanResult) string {
 	} else if res.KilledProcs > 0 {
 		procStats = fmt.Sprintf("%d encerrados", res.KilledProcs)
 	}
-	if res.Source == SourcePagefile {
-		if res.PagefileFreedBytes > 0 {
-			return fmt.Sprintf("Paginação limpa: -%s no Pagefile (%s · %d ms)", FormatBytes(res.PagefileFreedBytes), procStats, res.DurationMs)
-		}
-		return fmt.Sprintf("Paginação otimizada (%s · %d ms)", procStats, res.DurationMs)
-	}
-	if res.FreedBytes > 0 && res.PagefileFreedBytes >= 32*mb {
-		return fmt.Sprintf("+%s RAM · -%s Paginação (%s · %s · %d ms)",
+	switch {
+	case res.FreedBytes > 0 && res.PagefileFreedBytes >= 1*mb:
+		return fmt.Sprintf("+%s RAM · +%s Paginação (%s · %s · %d ms)",
 			FormatBytes(res.FreedBytes), FormatBytes(res.PagefileFreedBytes), mode, procStats, res.DurationMs)
-	}
-	if res.FreedBytes == 0 {
+	case res.FreedBytes == 0 && res.PagefileFreedBytes >= 1*mb:
+		return fmt.Sprintf("+%s Paginação (%s · %s · %d ms)",
+			FormatBytes(res.PagefileFreedBytes), mode, procStats, res.DurationMs)
+	case res.FreedBytes > 0:
+		return fmt.Sprintf("+%s liberados (%s · %s · %d ms)", FormatBytes(res.FreedBytes), mode, procStats, res.DurationMs)
+	default:
 		return fmt.Sprintf("Limpeza concluída (%s · %s · %d ms)", mode, procStats, res.DurationMs)
 	}
-	return fmt.Sprintf("+%s liberados (%s · %s · %d ms)", FormatBytes(res.FreedBytes), mode, procStats, res.DurationMs)
 }
 
 // FormatHotkeyLabel formata modificadores Win32 e codigo VK para exibicao humana.

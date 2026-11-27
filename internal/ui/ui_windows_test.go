@@ -145,10 +145,10 @@ func TestRenderQAScreenshotsAndAllButtonHits(t *testing.T) {
 	}
 	mc, hits := RenderMainCanvas(stats, cfg, "", "", false)
 	mc.Close()
-	needed := map[string]bool{"open_settings": false, "clean_now": false, "clean_pagefile": false, "stop_until_reboot": false, "trim_pid_4242": false, "kill_pid_5353": false}
+	needed := map[string]bool{"open_settings": false, "clean_now": false, "stop_until_reboot": false, "trim_pid_4242": false, "kill_pid_5353": false}
 	for _, h := range hits {
-		if h.ID == "clean_deep" {
-			t.Errorf("clean_deep deveria ter sido unificado em clean_now")
+		if h.ID == "clean_deep" || h.ID == "clean_pagefile" {
+			t.Errorf("%s deveria estar unificado no botao unico clean_now", h.ID)
 		}
 		if _, ok := needed[h.ID]; ok {
 			needed[h.ID] = true

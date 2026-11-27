@@ -79,22 +79,9 @@ func handleCLI(args []string) (int, bool) {
 	if wantShortcut {
 		return runInstallShortcutCommand(cfg, wantJSON), true
 	}
-	if wantPagefile {
-		eng := sys.NewEngine()
-		res, err := eng.CleanPagefile(context.Background(), cfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Erro ao limpar paginação: %v\n", err)
-			return 1, true
-		}
-		printOutput(res, wantJSON, func() {
-			fmt.Printf("RamKiller CLI: %s\n", domain.FormatCleanSummary(res))
-			fmt.Printf("Pagefile usado: %s -> %s\n", domain.FormatBytes(res.BeforePagefileBytes), domain.FormatBytes(res.AfterPagefileBytes))
-		})
-		return 0, true
-	}
-	if wantClean || wantFull {
+	if wantClean || wantFull || wantPagefile {
 		mask := cfg.CleanMask
-		if wantFull {
+		if wantFull || wantPagefile {
 			mask = domain.MaskAll
 		}
 		eng := sys.NewEngine()
@@ -156,6 +143,6 @@ func printOutput(v any, asJSON bool, textFn func()) {
 }
 
 func printHelp() {
-	fmt.Println("RamKiller - Limpador nativo de RAM e Paginação para Windows")
-	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --clean-pagefile | --install-shortcut | --pause-until-reboot | --guardian | --json")
+	fmt.Println("RamKiller - Limpador unificado de RAM, Paginação e Kernel para Windows")
+	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --install-shortcut | --pause-until-reboot | --guardian | --json")
 }

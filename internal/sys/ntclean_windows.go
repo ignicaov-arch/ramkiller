@@ -115,32 +115,6 @@ func RunKernelClean(mask domain.CleanRegion) (executed bool, warnings []string) 
 		}
 	}
 
-	if mask&domain.RegionWorkingSet != 0 {
-		runCmd("WorkingSet(Kernel)", func() uint32 { return ntMemoryListCommand(memCmdEmptyWorkingSets) })
-	}
-	if mask&domain.RegionSystemFileCache != 0 {
-		runCmd("SystemFileCache", flushSystemFileCache)
-	}
-	if mask&domain.RegionModifiedFileCache != 0 {
-		if flushFixedVolumes() > 0 {
-			successes++
-		}
-	}
-	if mask&domain.RegionModifiedPageList != 0 {
-		runCmd("ModifiedPageList", func() uint32 { return ntMemoryListCommand(memCmdFlushModifiedList) })
-	}
-	if mask&domain.RegionStandbyList != 0 {
-		runCmd("StandbyList", func() uint32 { return ntMemoryListCommand(memCmdPurgeStandbyList) })
-	}
-	if mask&domain.RegionStandbyPriority0 != 0 {
-		runCmd("StandbyPriority0", func() uint32 { return ntMemoryListCommand(memCmdPurgeLowPriorityStandby) })
-	}
-	if mask&domain.RegionRegistryCache != 0 {
-		runCmd("RegistryCache", func() uint32 {
-			st, _, _ := procNtSetSystemInformation.Call(sysRegistryReconcileClass, 0, 0)
-			return uint32(st)
-		})
-	}
 	if mask&domain.RegionCombineMemoryLists != 0 {
 		runCmd("CombineMemoryLists", func() uint32 {
 			var info memoryCombineInfoEx
@@ -151,6 +125,32 @@ func RunKernelClean(mask domain.CleanRegion) (executed bool, warnings []string) 
 			)
 			return uint32(st)
 		})
+	}
+	if mask&domain.RegionModifiedFileCache != 0 {
+		if flushFixedVolumes() > 0 {
+			successes++
+		}
+	}
+	if mask&domain.RegionSystemFileCache != 0 {
+		runCmd("SystemFileCache", flushSystemFileCache)
+	}
+	if mask&domain.RegionRegistryCache != 0 {
+		runCmd("RegistryCache", func() uint32 {
+			st, _, _ := procNtSetSystemInformation.Call(sysRegistryReconcileClass, 0, 0)
+			return uint32(st)
+		})
+	}
+	if mask&domain.RegionWorkingSet != 0 {
+		runCmd("WorkingSet(Kernel)", func() uint32 { return ntMemoryListCommand(memCmdEmptyWorkingSets) })
+	}
+	if mask&domain.RegionModifiedPageList != 0 {
+		runCmd("ModifiedPageList", func() uint32 { return ntMemoryListCommand(memCmdFlushModifiedList) })
+	}
+	if mask&domain.RegionStandbyPriority0 != 0 {
+		runCmd("StandbyPriority0", func() uint32 { return ntMemoryListCommand(memCmdPurgeLowPriorityStandby) })
+	}
+	if mask&domain.RegionStandbyList != 0 {
+		runCmd("StandbyList", func() uint32 { return ntMemoryListCommand(memCmdPurgeStandbyList) })
 	}
 	return successes > 0, warnings
 }
