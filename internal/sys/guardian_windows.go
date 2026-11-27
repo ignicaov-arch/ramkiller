@@ -121,13 +121,13 @@ func RunGuardian() error {
 		}
 		if !IsMutexHeld(MainMutexName) {
 			if IsElevated() {
-				cmd := exec.Command(exe, "--minimized")
+				cmd := exec.Command(exe, "--minimized", "--boot")
 				cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 				_ = cmd.Start()
 			} else if IsSkipUACTaskEnabled() {
 				_, _ = runSchtasks("/Run", "/TN", skipUACTask)
 			} else {
-				_ = RelaunchAsAdmin("--minimized")
+				_ = RelaunchAsAdmin("--minimized", "--boot")
 			}
 		}
 		TrimSelf()

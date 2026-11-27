@@ -179,3 +179,7 @@ func TestCreateShortcutLNKRealAndStartMenuPath(t *testing.T) {
 		t.Fatalf("cabecalho ShellLink esperado 4C 00 00 00, obteve %x", raw[:4])
 	}
 }
+
+func TestIsUserAcceptingNotificationsSafe(t *testing.T) {
+	_ = IsUserAcceptingNotifications()
+}

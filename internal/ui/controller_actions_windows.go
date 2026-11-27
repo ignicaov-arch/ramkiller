@@ -114,13 +114,16 @@ func (a *AppController) onCleanFinished() {
 	if res != nil {
 		a.lastSummary = domain.FormatCleanSummary(*res)
 		cfg := a.getConfig()
-		if cfg.ShowBalloonResult {
+		if domain.ShouldShowCleanBalloon(cfg, res.Source, sys.IsUserAcceptingNotifications()) {
 			a.tray.ShowBalloon("RamKiller", a.lastSummary, cfg.NotificationSound)
 		}
 	}
-	a.refreshStats(true)
+	vis, _, _ := procIsWindowVisible.Call(a.mainHWND)
+	a.refreshStats(vis != 0)
 	a.forceTrayRefresh()
-	procInvalidateRect.Call(a.mainHWND, 0, 0)
+	if vis != 0 {
+		procInvalidateRect.Call(a.mainHWND, 0, 0)
+	}
 }
 
 func (a *AppController) showMainWindow() {

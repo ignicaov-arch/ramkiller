@@ -91,7 +91,7 @@ func (t *TrayHost) ShowBalloon(title, body string, sound bool) {
 	nid := t.baseData(NIF_INFO)
 	CopyUTF16(nid.SzInfoTitle[:], title)
 	CopyUTF16(nid.SzInfo[:], body)
-	nid.DwInfoFlags = NIIF_INFO
+	nid.DwInfoFlags = NIIF_INFO | NIIF_RESPECT_QUIET_TIME
 	if !sound {
 		nid.DwInfoFlags |= NIIF_NOSOUND
 	}

@@ -18,6 +18,7 @@ execFileSync(goBin, ['build', '-trimpath', '-ldflags=-H=windowsgui -s -w', '-o',
   stdio: 'inherit',
   env
 });
+fs.rmSync(`${outExe}~`, { force: true });
 
 const stat = fs.statSync(outExe);
 if (!stat.isFile() || stat.size < 100_000) {

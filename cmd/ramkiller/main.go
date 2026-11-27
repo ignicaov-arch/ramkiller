@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ignicaov-arch/ramkiller/internal/domain"
 	"github.com/ignicaov-arch/ramkiller/internal/sys"
 	"github.com/ignicaov-arch/ramkiller/internal/ui"
 )
@@ -35,36 +36,38 @@ func main() {
 		return
 	}
 
-	isBoot := hasArg(args, "--boot")
-	minimized := hasArg(args, "--minimized")
-	if isBoot {
-		if sys.IsPausedForCurrentBoot() || sys.IsMutexHeld(sys.MainMutexName) {
+	plan := domain.ResolveLaunchPlan(args)
+	if plan.RespectPause {
+		if sys.IsPausedForCurrentBoot() {
 			return
-		}
-		if !sys.IsElevated() && !hasArg(args, "--no-elevate") {
-			if sys.IsSkipUACTaskEnabled() && sys.RunSkipUACTask() == nil {
-				return
-			}
-			if err := sys.RelaunchAsAdmin(args...); err == nil {
-				return
-			}
 		}
 	} else {
 		_ = sys.ClearPauseState()
-		if !minimized && ui.FocusRunningInstance() {
-			return
+	}
+
+	if sys.IsMutexHeld(sys.MainMutexName) {
+		if plan.FocusExisting {
+			_ = ui.FocusRunningInstance()
 		}
-		if !sys.IsElevated() && !hasArg(args, "--no-elevate") {
+		return
+	}
+
+	if !sys.IsElevated() && !plan.NoElevate {
+		if plan.UseSilentTask {
+			if sys.IsSkipUACTaskEnabled() && sys.RunSkipUACTask() == nil {
+				return
+			}
+		} else {
 			if err := sys.RunInteractiveTask(); err == nil {
 				return
 			}
-			if err := sys.RelaunchAsAdmin(args...); err == nil {
-				return
-			}
+		}
+		if err := sys.RelaunchAsAdmin(plan.RelaunchArgs...); err == nil {
+			return
 		}
 	}
 
-	if err := ui.RunApp(minimized, isBoot); err != nil {
+	if err := ui.RunApp(plan.Minimized, plan.IsBoot); err != nil {
 		attachParentConsole()
 		fmt.Fprintf(os.Stderr, "Erro ao iniciar RamKiller: %v\n", err)
 		os.Exit(1)

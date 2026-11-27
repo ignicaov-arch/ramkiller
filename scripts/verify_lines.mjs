@@ -28,7 +28,6 @@ const files = walk(root);
 const violations = [];
 for (const f of files) {
   const rel = path.relative(root, f).replace(/\\/g, '/');
-  if (rel.endsWith('_test.go') || /\.(test|spec)\./i.test(rel)) continue;
   const raw = fs.readFileSync(f, 'utf8');
   const trimmed = raw.endsWith('\n') ? raw.slice(0, -1).replace(/\r$/, '') : raw;
   const lines = trimmed ? trimmed.split('\n').length : 0;

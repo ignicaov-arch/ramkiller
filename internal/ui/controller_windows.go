@@ -64,8 +64,10 @@ func RunApp(startMinimized bool, isBoot bool) error {
 
 	mutexHandle, _, lastErr := procCreateMutexW.Call(0, 0, uintptr(unsafe.Pointer(UTF16Ptr(sys.MainMutexName))))
 	if errno, ok := lastErr.(syscall.Errno); ok && errno == errorAlreadyExists {
-		if existing, _, _ := procFindWindowW.Call(uintptr(unsafe.Pointer(UTF16Ptr(mainClassName))), 0); existing != 0 {
-			procPostMessageW.Call(existing, wmAppShow, 0, 0)
+		if domain.ShouldFocusOnMutexCollision(startMinimized, isBoot) {
+			if existing, _, _ := procFindWindowW.Call(uintptr(unsafe.Pointer(UTF16Ptr(mainClassName))), 0); existing != 0 {
+				procPostMessageW.Call(existing, wmAppShow, 0, 0)
+			}
 		}
 		return nil
 	}

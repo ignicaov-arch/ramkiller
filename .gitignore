@@ -5,6 +5,8 @@
 *.key
 *.log
 *.tmp
+*~
+*.exe~
 coverage.out
 .skills-gates/
 .visual-audit/

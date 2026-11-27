@@ -105,8 +105,9 @@ var (
 	procGetWindowTextW           = User32.NewProc("GetWindowTextW")
 	procDwmGetWindowAttribute    = Dwmapi.NewProc("DwmGetWindowAttribute")
 
-	procShellExecuteW       = Shell32.NewProc("ShellExecuteW")
-	procSHChangeNotify      = Shell32.NewProc("SHChangeNotify")
+	procShellExecuteW               = Shell32.NewProc("ShellExecuteW")
+	procSHChangeNotify              = Shell32.NewProc("SHChangeNotify")
+	procSHQueryUserNotificationState = Shell32.NewProc("SHQueryUserNotificationState")
 	procCoInitializeEx      = Ole32.NewProc("CoInitializeEx")
 	procCoUninitialize      = Ole32.NewProc("CoUninitialize")
 	procCoCreateInst        = Ole32.NewProc("CoCreateInstance")
