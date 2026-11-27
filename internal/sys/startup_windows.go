@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"unicode"
 	"unsafe"
@@ -19,12 +18,12 @@ const (
 	keyRead         = 0x20019
 	keySetValue     = 0x0002
 	regSZ           = 1
+	regBinary       = 3
 	errFileNotFound = 2
 
-	runSubKey     = `Software\Microsoft\Windows\CurrentVersion\Run`
-	runValueName  = "RamKiller"
-	skipUACTask   = "RamKiller_AutoStart"
-	legacyUACTask = "RamKiller_SkipUAC"
+	runSubKey         = `Software\Microsoft\Windows\CurrentVersion\Run`
+	runApprovedSubKey = `Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run`
+	runValueName      = "RamKiller"
 )
 
 func hasControlChars(s string) bool {
@@ -63,6 +62,22 @@ func IsAutorunEnabled() bool {
 	return r == 0 && valType == regSZ && dataSize > 0
 }
 
+func setStartupApproved(enabled bool) {
+	if !enabled {
+		return
+	}
+	subPtr, _ := syscall.UTF16PtrFromString(runApprovedSubKey)
+	valPtr, _ := syscall.UTF16PtrFromString(runValueName)
+	var hKey uintptr
+	r, _, _ := procRegOpenKeyExW.Call(hkeyCurrentUser, uintptr(unsafe.Pointer(subPtr)), 0, keySetValue, uintptr(unsafe.Pointer(&hKey)))
+	if r != 0 || hKey == 0 {
+		return
+	}
+	defer procRegCloseKey.Call(hKey)
+	approved := [12]byte{0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	procRegSetValueExW.Call(hKey, uintptr(unsafe.Pointer(valPtr)), 0, regBinary, uintptr(unsafe.Pointer(&approved[0])), uintptr(len(approved)))
+}
+
 // SetAutorun registra ou remove o RamKiller em HKCU\...\Run com --boot.
 func SetAutorun(enabled bool, minimized bool) error {
 	subKeyPtr, _ := syscall.UTF16PtrFromString(runSubKey)
@@ -98,52 +113,17 @@ func SetAutorun(enabled bool, minimized bool) error {
 	if r != 0 {
 		return fmt.Errorf("RegSetValueExW falhou (%d)", r)
 	}
+	setStartupApproved(true)
 	return nil
 }
 
-func runSchtasks(args ...string) (string, error) {
-	cmd := exec.Command(System32Path("schtasks.exe"), args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
-}
-
-// IsSkipUACTaskEnabled verifica se a tarefa agendada de logon elevado existe.
-func IsSkipUACTaskEnabled() bool {
-	_, err := runSchtasks("/Query", "/TN", skipUACTask)
-	return err == nil
-}
-
-// SetSkipUACTask cria ou remove a tarefa agendada de inicializacao elevada no logon.
-func SetSkipUACTask(enabled bool, minimized bool) error {
-	_, _ = runSchtasks("/Delete", "/TN", legacyUACTask, "/F")
-	if !enabled {
-		out, err := runSchtasks("/Delete", "/TN", skipUACTask, "/F")
-		if err != nil && IsSkipUACTaskEnabled() {
-			return fmt.Errorf("schtasks delete falhou: %v (%s)", err, out)
-		}
-		return nil
-	}
-	exe, err := validatedExePath()
-	if err != nil {
-		return err
-	}
-	tr := fmt.Sprintf(`"%s" --boot`, exe)
-	if minimized {
-		tr = fmt.Sprintf(`"%s" --minimized --boot`, exe)
-	}
-	out, err := runSchtasks("/Create", "/TN", skipUACTask, "/TR", tr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F")
-	if err != nil {
-		return fmt.Errorf("schtasks create falhou: %v (%s)", err, out)
-	}
-	return nil
-}
-
-// SyncStartupRegistration sincroniza Run no registro e tarefa agendada com a configuracao.
+// SyncStartupRegistration sincroniza Menu Iniciar, Run no registro e tarefas agendadas.
 func SyncStartupRegistration(cfg domain.Config) {
 	_ = SetAutorun(cfg.LoadOnStartup, cfg.StartMinimized)
+	_ = SyncStartMenuShortcut(cfg.StartMenuShortcut)
 	if IsElevated() {
 		_ = SetSkipUACTask(cfg.LoadOnStartup && cfg.SkipUAC, cfg.StartMinimized)
+		_ = SyncInteractiveTask()
 	}
 }
 

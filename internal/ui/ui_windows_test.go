@@ -37,6 +37,7 @@ func TestAllSettingsControlsAndSteppersWork(t *testing.T) {
 	}{
 		{"chk_always_top", func(c *domain.Config) bool { return c.AlwaysOnTop }},
 		{"chk_autorun", func(c *domain.Config) bool { return c.LoadOnStartup }},
+		{"chk_start_menu", func(c *domain.Config) bool { return c.StartMenuShortcut }},
 		{"chk_self_heal", func(c *domain.Config) bool { return c.SelfHeal }},
 		{"chk_minimized", func(c *domain.Config) bool { return c.StartMinimized }},
 		{"chk_confirm", func(c *domain.Config) bool { return c.ConfirmClean }},

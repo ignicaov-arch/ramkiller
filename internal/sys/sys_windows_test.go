@@ -159,3 +159,25 @@ func TestRecycleLeakyPagefileHostsRules(t *testing.T) {
 		t.Error("explorer.exe nao pode constar em leakyCommitHostNames")
 	}
 }
+
+func TestCreateShortcutLNKRealAndStartMenuPath(t *testing.T) {
+	p, err := StartMenuShortcutPath()
+	if err != nil || !strings.HasSuffix(strings.ToLower(p), `\start menu\programs\ramkiller.lnk`) {
+		t.Fatalf("StartMenuShortcutPath inesperado: %q err=%v", p, err)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpLnk := filepath.Join(t.TempDir(), "RamKillerTest.lnk")
+	if err := CreateShortcutLNK(tmpLnk, exe, "", filepath.Dir(exe), "RamKiller Teste", exe, 0); err != nil {
+		t.Fatalf("CreateShortcutLNK falhou: %v", err)
+	}
+	raw, err := os.ReadFile(tmpLnk)
+	if err != nil || len(raw) < 76 {
+		t.Fatalf("arquivo .lnk invalido: len=%d err=%v", len(raw), err)
+	}
+	if raw[0] != 0x4C || raw[1] != 0x00 || raw[2] != 0x00 || raw[3] != 0x00 {
+		t.Fatalf("cabecalho ShellLink esperado 4C 00 00 00, obteve %x", raw[:4])
+	}
+}

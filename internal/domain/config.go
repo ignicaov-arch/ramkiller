@@ -11,7 +11,7 @@ import (
 
 const (
 	maxConfigBytes       = 65536
-	CurrentConfigVersion = 3
+	CurrentConfigVersion = 4
 )
 
 // Config armazena todas as preferencias persistidas do RamKiller.
@@ -19,6 +19,7 @@ type Config struct {
 	ConfigVersion             int         `json:"configVersion"`
 	AlwaysOnTop               bool        `json:"alwaysOnTop"`
 	LoadOnStartup             bool        `json:"loadOnStartup"`
+	StartMenuShortcut         bool        `json:"startMenuShortcut"`
 	StartMinimized            bool        `json:"startMinimized"`
 	SelfHeal                  bool        `json:"selfHeal"`
 	ConfirmClean              bool        `json:"confirmClean"`
@@ -59,6 +60,7 @@ func DefaultConfig() Config {
 	return Config{
 		ConfigVersion:             CurrentConfigVersion,
 		LoadOnStartup:             true,
+		StartMenuShortcut:         true,
 		StartMinimized:            true,
 		SelfHeal:                  true,
 		SkipUAC:                   true,
@@ -154,6 +156,7 @@ func upgradeLegacyConfig(cfg *Config, data []byte) {
 		cfg.CleanMask = MaskAll
 		cfg.AllowStandbyInAuto = true
 		cfg.LoadOnStartup = true
+		cfg.StartMenuShortcut = true
 		cfg.SelfHeal = true
 		cfg.KillBackgroundApps = true
 		cfg.SkipUAC = true

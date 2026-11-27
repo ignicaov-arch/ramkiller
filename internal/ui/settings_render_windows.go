@@ -81,17 +81,18 @@ func renderTabGeneral(c *Canvas, x, w int, cfg domain.Config, elevated bool, hov
 	c.StrokeRoundRect(x, 16, w, 232, RadiusCard, 1, ColorBorder)
 	c.DrawText("Comportamento Geral e Autoregeneração", FontUI, 13, true, ColorTextPrimary, RECT{int32(x + 14), 24, int32(x + w - 14), 44}, dtLeft|dtVCenter|dtSingleLine)
 
-	hits = append(hits, drawCheckbox(c, "chk_always_top", x+14, 52, cfg.AlwaysOnTop, "Manter janela sempre no topo", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_autorun", x+14, 82, cfg.LoadOnStartup, "Iniciar automaticamente ao ligar o PC", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_self_heal", x+14, 112, cfg.SelfHeal, "Autoregenerar se encerrado por fora (guardião)", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_minimized", x+14, 142, cfg.StartMinimized, "Iniciar minimizado na bandeja", hoverID))
-	hits = append(hits, drawCheckbox(c, "chk_confirm", x+14, 172, cfg.ConfirmClean, "Confirmar antes de iniciar limpeza manual", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_always_top", x+14, 48, cfg.AlwaysOnTop, "Manter janela sempre no topo", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_autorun", x+14, 74, cfg.LoadOnStartup, "Iniciar automaticamente ao ligar o PC", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_start_menu", x+14, 100, cfg.StartMenuShortcut, "Atalho no Menu Iniciar (buscar RamKiller no Windows)", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_self_heal", x+14, 126, cfg.SelfHeal, "Autoregenerar se encerrado por fora (guardião)", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_minimized", x+14, 152, cfg.StartMinimized, "Iniciar minimizado na bandeja", hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_confirm", x+14, 178, cfg.ConfirmClean, "Confirmar antes de iniciar limpeza manual", hoverID))
 
 	uacLabel := "Ignorar aviso UAC ao ligar (Tarefa Agendada Admin)"
 	if !elevated {
 		uacLabel = "Ignorar aviso UAC ao ligar (clique para elevar Admin)"
 	}
-	hits = append(hits, drawCheckbox(c, "chk_skip_uac", x+14, 202, cfg.SkipUAC, uacLabel, hoverID))
+	hits = append(hits, drawCheckbox(c, "chk_skip_uac", x+14, 204, cfg.SkipUAC, uacLabel, hoverID))
 
 	c.FillRoundRect(x, 260, w, 150, RadiusCard, ColorBgCard)
 	c.StrokeRoundRect(x, 260, w, 150, RadiusCard, 1, ColorBorder)

@@ -39,6 +39,17 @@ type AppController struct {
 	taskbarCreatedMsg uint32
 }
 
+// FocusRunningInstance traz a janela do RamKiller ja em execucao para frente sem exigir novo UAC.
+func FocusRunningInstance() bool {
+	existing, _, _ := procFindWindowW.Call(uintptr(unsafe.Pointer(UTF16Ptr(mainClassName))), 0)
+	if existing == 0 {
+		return false
+	}
+	procAllowSetForegroundWindow.Call(^uintptr(0))
+	procPostMessageW.Call(existing, wmAppShow, 0, 0)
+	return true
+}
+
 // RunApp inicializa o aplicativo nativo na bandeja do Windows (loop Win32 em thread fixa).
 func RunApp(startMinimized bool, isBoot bool) error {
 	runtime.LockOSThread()
@@ -134,7 +145,7 @@ func (a *AppController) applyNewConfig(cfg domain.Config) {
 	a.mu.Unlock()
 	_ = sys.SaveConfig(cfg)
 
-	if prev.LoadOnStartup != cfg.LoadOnStartup || prev.StartMinimized != cfg.StartMinimized || prev.SkipUAC != cfg.SkipUAC {
+	if prev.LoadOnStartup != cfg.LoadOnStartup || prev.StartMenuShortcut != cfg.StartMenuShortcut || prev.StartMinimized != cfg.StartMinimized || prev.SkipUAC != cfg.SkipUAC {
 		sys.SyncStartupRegistration(cfg)
 	}
 	if prev.SelfHeal != cfg.SelfHeal {

@@ -13,6 +13,8 @@ func (a *AppController) applySettingsMutation(hwnd uintptr, id string, cfg *doma
 		cfg.AlwaysOnTop = !cfg.AlwaysOnTop
 	case "chk_autorun":
 		cfg.LoadOnStartup = !cfg.LoadOnStartup
+	case "chk_start_menu":
+		cfg.StartMenuShortcut = !cfg.StartMenuShortcut
 	case "chk_self_heal":
 		cfg.SelfHeal = !cfg.SelfHeal
 	case "chk_minimized":

@@ -1,10 +1,13 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { generateIconSyso } from './gen_icon_syso.mjs';
 
 const root = process.cwd();
 const distDir = path.join(root, 'dist');
 fs.mkdirSync(distDir, { recursive: true });
+
+generateIconSyso(path.join(root, 'cmd', 'ramkiller', 'rsrc_windows_amd64.syso'));
 
 const outExe = path.join(distDir, 'ramkiller.exe');
 const goBin = fs.existsSync('C:\\Program Files\\Go\\bin\\go.exe') ? 'C:\\Program Files\\Go\\bin\\go.exe' : 'go';

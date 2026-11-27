@@ -35,22 +35,35 @@ func main() {
 		return
 	}
 
-	if hasArg(args, "--boot") {
-		if sys.IsPausedForCurrentBoot() {
+	isBoot := hasArg(args, "--boot")
+	minimized := hasArg(args, "--minimized")
+	if isBoot {
+		if sys.IsPausedForCurrentBoot() || sys.IsMutexHeld(sys.MainMutexName) {
 			return
+		}
+		if !sys.IsElevated() && !hasArg(args, "--no-elevate") {
+			if sys.IsSkipUACTaskEnabled() && sys.RunSkipUACTask() == nil {
+				return
+			}
+			if err := sys.RelaunchAsAdmin(args...); err == nil {
+				return
+			}
 		}
 	} else {
 		_ = sys.ClearPauseState()
-	}
-
-	if !sys.IsElevated() && !hasArg(args, "--no-elevate") {
-		if err := sys.RelaunchAsAdmin(args...); err == nil {
+		if !minimized && ui.FocusRunningInstance() {
 			return
+		}
+		if !sys.IsElevated() && !hasArg(args, "--no-elevate") {
+			if err := sys.RunInteractiveTask(); err == nil {
+				return
+			}
+			if err := sys.RelaunchAsAdmin(args...); err == nil {
+				return
+			}
 		}
 	}
 
-	isBoot := hasArg(args, "--boot")
-	minimized := hasArg(args, "--minimized")
 	if err := ui.RunApp(minimized, isBoot); err != nil {
 		attachParentConsole()
 		fmt.Fprintf(os.Stderr, "Erro ao iniciar RamKiller: %v\n", err)

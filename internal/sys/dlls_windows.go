@@ -39,6 +39,7 @@ var (
 	Advapi32 = LoadSystemDLL("advapi32.dll")
 	User32   = LoadSystemDLL("user32.dll")
 	Shell32  = LoadSystemDLL("shell32.dll")
+	Ole32    = LoadSystemDLL("ole32.dll")
 	Gdi32    = LoadSystemDLL("gdi32.dll")
 	Gdiplus  = LoadSystemDLL("gdiplus.dll")
 	Dwmapi   = LoadSystemDLL("dwmapi.dll")
@@ -103,5 +104,9 @@ var (
 	procGetWindowTextW           = User32.NewProc("GetWindowTextW")
 	procDwmGetWindowAttribute    = Dwmapi.NewProc("DwmGetWindowAttribute")
 
-	procShellExecuteW = Shell32.NewProc("ShellExecuteW")
+	procShellExecuteW  = Shell32.NewProc("ShellExecuteW")
+	procSHChangeNotify = Shell32.NewProc("SHChangeNotify")
+	procCoInitializeEx = Ole32.NewProc("CoInitializeEx")
+	procCoUninitialize = Ole32.NewProc("CoUninitialize")
+	procCoCreateInst   = Ole32.NewProc("CoCreateInstance")
 )

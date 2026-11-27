@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/ignicaov-arch/ramkiller/internal/domain"
@@ -23,7 +22,7 @@ func attachParentConsole() {
 }
 
 func handleCLI(args []string) (int, bool) {
-	var wantStatus, wantClean, wantFull, wantPagefile, wantAudit, wantPause, wantJSON, wantHelp bool
+	var wantStatus, wantClean, wantFull, wantPagefile, wantAudit, wantShortcut, wantPause, wantJSON, wantHelp bool
 	var renderQADir string
 
 	for _, raw := range args {
@@ -39,6 +38,8 @@ func handleCLI(args []string) (int, bool) {
 			wantPagefile = true
 		case a == "--audit-procs":
 			wantAudit = true
+		case a == "--install-shortcut":
+			wantShortcut = true
 		case a == "--pause-until-reboot":
 			wantPause = true
 		case a == "--json":
@@ -50,7 +51,7 @@ func handleCLI(args []string) (int, bool) {
 		}
 	}
 
-	if !wantStatus && !wantClean && !wantFull && !wantPagefile && !wantAudit && !wantPause && !wantHelp && renderQADir == "" {
+	if !wantStatus && !wantClean && !wantFull && !wantPagefile && !wantAudit && !wantShortcut && !wantPause && !wantHelp && renderQADir == "" {
 		return 0, false
 	}
 
@@ -74,6 +75,9 @@ func handleCLI(args []string) (int, bool) {
 	cfg, _ := sys.LoadConfig()
 	if wantAudit {
 		return runAuditCommand(cfg, wantJSON), true
+	}
+	if wantShortcut {
+		return runInstallShortcutCommand(cfg, wantJSON), true
 	}
 	if wantPagefile {
 		eng := sys.NewEngine()
@@ -141,44 +145,6 @@ func runPauseCommand(asJSON bool) int {
 	return 0
 }
 
-type auditEntry struct {
-	PID        uint32            `json:"pid"`
-	Name       string            `json:"name"`
-	Action     domain.ProcAction `json:"action"`
-	Reason     string            `json:"reason"`
-	OpenWindow bool              `json:"openWindow"`
-	PrivateMB  uint64            `json:"privateMb"`
-}
-
-func runAuditCommand(cfg domain.Config, asJSON bool) int {
-	snaps, deskOK, err := sys.CollectProcessSnapshots()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erro na auditoria de processos: %v\n", err)
-		return 1
-	}
-	decs := domain.ClassifyProcesses(snaps, uint32(os.Getpid()), deskOK, cfg.AnomalyLimitMB)
-	var rows []auditEntry
-	for _, s := range snaps {
-		if s.SessionID == 0 || s.PID <= 4 {
-			continue
-		}
-		d := decs[s.PID]
-		rows = append(rows, auditEntry{PID: s.PID, Name: s.Name, Action: d.Action, Reason: d.Reason, OpenWindow: s.HasOpenWindow, PrivateMB: s.PrivateBytes / (1024 * 1024)})
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].PrivateMB > rows[j].PrivateMB })
-	payload := struct {
-		DesktopEnumOK bool         `json:"desktopEnumOk"`
-		Processes     []auditEntry `json:"processes"`
-	}{DesktopEnumOK: deskOK, Processes: rows}
-	printOutput(payload, asJSON, func() {
-		fmt.Printf("DesktopEnumOK=%t | Processos usuario=%d\n", deskOK, len(rows))
-		for _, r := range rows {
-			fmt.Printf("  %-26s PID %-6d %-10s %4d MB  [%s]\n", r.Name, r.PID, r.Action, r.PrivateMB, r.Reason)
-		}
-	})
-	return 0
-}
-
 func printOutput(v any, asJSON bool, textFn func()) {
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -191,5 +157,5 @@ func printOutput(v any, asJSON bool, textFn func()) {
 
 func printHelp() {
 	fmt.Println("RamKiller - Limpador nativo de RAM e Paginação para Windows")
-	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --clean-pagefile | --pause-until-reboot | --guardian | --json")
+	fmt.Println("Uso: --minimized | --status | --audit-procs | --clean | --clean-pagefile | --install-shortcut | --pause-until-reboot | --guardian | --json")
 }

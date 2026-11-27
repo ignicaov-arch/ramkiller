@@ -11,16 +11,25 @@ import (
 
 const mainClassName = "RamKillerMainClass"
 
+func loadAppIcon(hInst uintptr, size int) uintptr {
+	ic, _, _ := procLoadImageW.Call(hInst, 1, 1 /* IMAGE_ICON */, uintptr(size), uintptr(size), 0)
+	return ic
+}
+
 func createFixedDarkWindow(className, title string, clientW, clientH int, wndProc uintptr, visible bool) uintptr {
 	hInst, _, _ := procGetModuleHandleW.Call(0)
 	clsPtr := UTF16Ptr(className)
 	cur, _, _ := procLoadCursorW.Call(0, IDC_ARROW)
+	iconLg := loadAppIcon(hInst, 32)
+	iconSm := loadAppIcon(hInst, 16)
 
 	wc := WNDCLASSEXW{
 		CbSize:        uint32(unsafe.Sizeof(WNDCLASSEXW{})),
 		Style:         CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
 		LpfnWndProc:   wndProc,
 		HInstance:     hInst,
+		HIcon:         iconLg,
+		HIconSm:       iconSm,
 		HCursor:       cur,
 		LpszClassName: clsPtr,
 	}
@@ -45,6 +54,7 @@ func createFixedDarkWindow(className, title string, clientW, clientH int, wndPro
 	)
 	if hwnd != 0 {
 		ApplyWindowDarkChrome(hwnd)
+		procChangeWindowMsgFilterEx.Call(hwnd, wmAppShow, 1 /* MSGFLT_ALLOW */, 0)
 	}
 	return hwnd
 }

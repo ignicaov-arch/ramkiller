@@ -12,8 +12,8 @@ func TestDefaultConfigAndSanitizeBounds(t *testing.T) {
 	if cfg.ConfigVersion != CurrentConfigVersion || cfg.CleanMask != MaskAll {
 		t.Fatalf("defaults v2 inesperados: ver=%d mask=%v", cfg.ConfigVersion, cfg.CleanMask)
 	}
-	if !cfg.LoadOnStartup || !cfg.SelfHeal || !cfg.KillBackgroundApps || !cfg.AllowStandbyInAuto || !cfg.SkipUAC {
-		t.Fatalf("flags principais v2 deveriam iniciar ativas: %+v", cfg)
+	if !cfg.LoadOnStartup || !cfg.StartMenuShortcut || !cfg.SelfHeal || !cfg.KillBackgroundApps || !cfg.AllowStandbyInAuto || !cfg.SkipUAC {
+		t.Fatalf("flags principais deveriam iniciar ativas: %+v", cfg)
 	}
 	if cfg.AutoCleanThresholdPct != 80 || cfg.WarningLevelPct != 60 || cfg.DangerLevelPct != 90 {
 		t.Fatalf("limiares padrao inesperados: %+v", cfg)
@@ -78,8 +78,13 @@ func TestParseConfigJSONHostileInputsAndV1Upgrade(t *testing.T) {
 
 	v2Legacy := []byte(`{"configVersion":2,"cleanMask":231,"allowStandbyInAuto":false}`)
 	upgradedV2, err := ParseConfigJSON(v2Legacy)
-	if err != nil || upgradedV2.ConfigVersion != CurrentConfigVersion || upgradedV2.CleanMask != MaskAll || !upgradedV2.AllowStandbyInAuto {
-		t.Fatalf("upgrade v2->v3 incompleto: err=%v cfg=%+v", err, upgradedV2)
+	if err != nil || upgradedV2.ConfigVersion != CurrentConfigVersion || upgradedV2.CleanMask != MaskAll || !upgradedV2.AllowStandbyInAuto || !upgradedV2.StartMenuShortcut {
+		t.Fatalf("upgrade v2->v4 incompleto: err=%v cfg=%+v", err, upgradedV2)
+	}
+	v3Legacy := []byte(`{"configVersion":3,"loadOnStartup":true,"cleanMask":255}`)
+	upgradedV3, err := ParseConfigJSON(v3Legacy)
+	if err != nil || upgradedV3.ConfigVersion != CurrentConfigVersion || !upgradedV3.StartMenuShortcut {
+		t.Fatalf("upgrade v3->v4 incompleto: err=%v cfg=%+v", err, upgradedV3)
 	}
 
 	if _, err := ParseConfigJSON(nil); err == nil {
