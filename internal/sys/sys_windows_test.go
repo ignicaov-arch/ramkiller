@@ -93,8 +93,11 @@ func TestTrimSelfAndEngineConcurrencyNonDestructive(t *testing.T) {
 				if res.TrimmedProcs < 1 {
 					t.Errorf("esperava ao menos 1 processo reciclado, obteve %d", res.TrimmedProcs)
 				}
-				if res.BeforePagefileBytes == 0 || res.AfterPagefileBytes == 0 {
-					t.Errorf("esperava telemetria de pagefile preenchida na limpeza unificada: before=%d after=%d", res.BeforePagefileBytes, res.AfterPagefileBytes)
+				if res.BeforeUsedBytes == 0 || res.AfterUsedBytes == 0 {
+					t.Errorf("esperava telemetria fisica preenchida: before=%d after=%d", res.BeforeUsedBytes, res.AfterUsedBytes)
+				}
+				if res.BeforePagefileBytes > res.AfterPagefileBytes && res.PagefileFreedBytes != res.BeforePagefileBytes-res.AfterPagefileBytes {
+					t.Errorf("delta pagefile inconsistente: before=%d after=%d freed=%d", res.BeforePagefileBytes, res.AfterPagefileBytes, res.PagefileFreedBytes)
 				}
 			} else if errors.Is(err, ErrCleanInProgress) {
 				busyCount++

@@ -7,8 +7,5 @@
 *.tmp
 coverage.out
 .skills-gates/
-dist/
 .visual-audit/
 scratch/
-*.exe
-*.syso
