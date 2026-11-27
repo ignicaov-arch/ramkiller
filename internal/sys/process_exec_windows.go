@@ -59,10 +59,25 @@ func TrimProcessWorkingSetDelta(pid uint32) (name string, beforeWS, afterWS uint
 	return name, beforeWS, afterWS, nil
 }
 
-// TrimProcessWorkingSet recicla paginas inativas de um processo com SetProcessWorkingSetSizeEx + EmptyWorkingSet.
+// TrimProcessWorkingSet recicla paginas inativas em lote em alta velocidade (sem sleep nem snapshot O(N^2)).
 func TrimProcessWorkingSet(pid uint32) error {
-	_, _, _, err := TrimProcessWorkingSetDelta(pid)
-	return err
+	if pid <= 4 {
+		return fmt.Errorf("PID protegido: %d", pid)
+	}
+	h, _, openErr := procOpenProcess.Call(procQueryLimitedInfo|procSetQuota, 0, uintptr(pid))
+	if h == 0 {
+		return fmt.Errorf("OpenProcess(%d): %w", pid, openErr)
+	}
+	defer procCloseHandle.Call(h)
+
+	r, _, callErr := procK32EmptyWorkingSet.Call(h)
+	if r == 0 {
+		r, _, callErr = procPsapiEmptyWorkingSet.Call(h)
+	}
+	if r == 0 {
+		return fmt.Errorf("EmptyWorkingSet(%d): %w", pid, callErr)
+	}
+	return nil
 }
 
 // TerminateProcessSafe encerra um processo descartavel recusando PID <= 4 e o proprio processo.
@@ -98,6 +113,9 @@ func ExecuteProcessPlan(cfg domain.Config, allowKill bool) (killed int, killedNa
 		dec := decisions[s.PID]
 		if allowKill && dec.Action == domain.ProcKill {
 			killQueue = append(killQueue, s)
+			continue
+		}
+		if s.IsNetService {
 			continue
 		}
 		if dec.Action == domain.ProcKeepAndTrim || (s.PID > 4 && (s.Name == "explorer.exe" || s.Name == "language_server.exe")) {

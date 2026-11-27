@@ -96,3 +96,50 @@ func TestClassifyProcessesOpenVsBackgroundAndLanguageServer(t *testing.T) {
 		t.Errorf("fail-safe ainda deve matar bloatware explicito (PredatorSense): %+v", gotFailSafe[900])
 	}
 }
+
+func TestServiceChildrenWebView2AndActiveNetProtected(t *testing.T) {
+	snaps := []ProcSnapshot{
+		{PID: 100, ParentPID: 0, SessionID: 0, Name: "services.exe"},
+		{PID: 101, ParentPID: 100, SessionID: 0, Name: "svchost.exe"},
+		{PID: 102, ParentPID: 101, SessionID: 1, Name: "TabTip.exe"},
+		{PID: 103, ParentPID: 101, SessionID: 1, Name: "PredatorSense.exe", HasActiveNet: true},
+		{PID: 200, ParentPID: 100, SessionID: 0, Name: "AcerCentralService.exe"},
+		{PID: 201, ParentPID: 200, SessionID: 1, Name: "AcerHardwareService.exe"},
+		{PID: 300, ParentPID: 100, SessionID: 0, Name: "TeamViewer_Service.exe"},
+		{PID: 301, ParentPID: 300, SessionID: 1, Name: "TeamViewer.exe"},
+		{PID: 302, ParentPID: 301, SessionID: 1, Name: "msedgewebview2.exe"},
+		{PID: 303, ParentPID: 302, SessionID: 1, Name: "msedgewebview2.exe", HasActiveNet: true, IsNetService: true},
+		{PID: 400, ParentPID: 9999, SessionID: 1, Name: "AnyDesk.exe"},
+		{PID: 401, ParentPID: 400, SessionID: 1, Name: "msedgewebview2.exe", IsNetService: true},
+		{PID: 500, ParentPID: 1000, SessionID: 1, Name: "curl.exe", HasActiveNet: true},
+		{PID: 501, ParentPID: 500, SessionID: 1, Name: "git-remote-https.exe"},
+		{PID: 600, ParentPID: 1000, SessionID: 1, Name: "unsecapp.exe"},
+		{PID: 700, ParentPID: 1000, SessionID: 1, Name: "msedgewebview2.exe", HasOpenWindow: false, HasActiveNet: false, IsNetService: false},
+	}
+
+	got := ClassifyProcesses(snaps, 99999, true, 2560)
+
+	if got[102].Action != ProcKill {
+		t.Errorf("TabTip filho de svchost devia ser morto, obteve %+v", got[102])
+	}
+	if got[103].Action != ProcKill {
+		t.Errorf("bloatware explicito PredatorSense devia ser morto mesmo com net, obteve %+v", got[103])
+	}
+	if got[201].Action != ProcKeepSystem {
+		t.Errorf("AcerHardwareService filho de servico dedicado devia ser KeepSystem, obteve %+v", got[201])
+	}
+	for _, pid := range []uint32{301, 302, 303, 400, 401} {
+		if got[pid].Action == ProcKill {
+			t.Errorf("PID %d de acesso remoto/WebView2 nao podia ser morto: %+v", pid, got[pid])
+		}
+	}
+	if got[500].Action != ProcKeepAndTrim || got[501].Action != ProcKeepAndTrim {
+		t.Errorf("processo com socket TCP ativo e filho deviam ser preservados: 500=%+v 501=%+v", got[500], got[501])
+	}
+	if got[600].Action != ProcKeepSystem {
+		t.Errorf("unsecapp.exe WMI devia ser protegido, obteve %+v", got[600])
+	}
+	if got[700].Action != ProcKill {
+		t.Errorf("WebView2 orfao sem rede e sem pai protegido ainda devia ser morto: %+v", got[700])
+	}
+}

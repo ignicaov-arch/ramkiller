@@ -68,6 +68,8 @@ type ProcSnapshot struct {
 	WorkingSetBytes uint64 `json:"workingSetBytes"`
 	HasOpenWindow   bool   `json:"hasOpenWindow"`
 	CPUBusy         bool   `json:"cpuBusy"`
+	HasActiveNet    bool   `json:"hasActiveNet,omitempty"`
+	IsNetService    bool   `json:"isNetService,omitempty"`
 }
 
 // ProcDecision representa a decisao deterministica do classificador para um PID.

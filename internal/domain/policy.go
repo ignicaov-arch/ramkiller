@@ -59,6 +59,18 @@ var protectedNames = map[string]struct{}{
 	"parsecd.exe":               {},
 	"pservice.exe":              {},
 	"rustdesk.exe":              {},
+	"unsecapp.exe":              {},
+	"wmiprvse.exe":              {},
+	"wlanext.exe":               {},
+	"dashost.exe":               {},
+	"aggregatorhost.exe":        {},
+	"mdnsresponder.exe":         {},
+	"wireguard.exe":             {},
+	"tailscaled.exe":            {},
+	"warp-svc.exe":              {},
+	"openvpn.exe":               {},
+	"openvpnserv.exe":           {},
+	"zerotier-one_x64.exe":      {},
 }
 
 var allRegionSpecs = []RegionSpec{

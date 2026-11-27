@@ -2,6 +2,36 @@ package domain
 
 import "strings"
 
+var serviceHostContainers = map[string]struct{}{
+	"svchost.exe":  {},
+	"dllhost.exe":  {},
+	"explorer.exe": {},
+}
+
+var protectedAppRoots = map[string]struct{}{
+	"anydesk.exe":           {},
+	"teamviewer.exe":        {},
+	"teamviewer_desktop.exe": {},
+	"rustdesk.exe":          {},
+	"parsecd.exe":           {},
+	"tailscale-ipn.exe":     {},
+	"cloudflare warp.exe":   {},
+	"nordvpn.exe":           {},
+}
+
+func propagateChildren(tree map[uint32]bool, queue []uint32, children map[uint32][]uint32) {
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		for _, ch := range children[pid] {
+			if !tree[ch] {
+				tree[ch] = true
+				queue = append(queue, ch)
+			}
+		}
+	}
+}
+
 func collectAncestors(pid uint32, byPID map[uint32]ProcSnapshot) map[uint32]bool {
 	out := make(map[uint32]bool)
 	cur := pid
@@ -19,6 +49,28 @@ func collectAncestors(pid uint32, byPID map[uint32]ProcSnapshot) map[uint32]bool
 	return out
 }
 
+func markUserAncestors(pid uint32, tree map[uint32]bool, queue *[]uint32, byPID map[uint32]ProcSnapshot) {
+	cur := pid
+	for i := 0; i < 64 && cur > 0; i++ {
+		snap, ok := byPID[cur]
+		if !ok || (snap.SessionID == 0 && cur != pid) || tree[cur] {
+			break
+		}
+		// Nunca sobe para containers do SO (explorer.exe, svchost.exe, sihost.exe) para nao herdar apps fechados.
+		if cur != pid {
+			if _, isSys := protectedNames[strings.ToLower(strings.TrimSpace(snap.Name))]; isSys {
+				break
+			}
+		}
+		tree[cur] = true
+		*queue = append(*queue, cur)
+		if snap.ParentPID == cur {
+			break
+		}
+		cur = snap.ParentPID
+	}
+}
+
 func buildOpenTree(snaps []ProcSnapshot, byPID map[uint32]ProcSnapshot, children map[uint32][]uint32) map[uint32]bool {
 	openTree := make(map[uint32]bool)
 	var queue []uint32
@@ -26,36 +78,9 @@ func buildOpenTree(snaps []ProcSnapshot, byPID map[uint32]ProcSnapshot, children
 		if !s.HasOpenWindow {
 			continue
 		}
-		cur := s.PID
-		for i := 0; i < 64 && cur > 0; i++ {
-			snap, ok := byPID[cur]
-			if !ok || (snap.SessionID == 0 && cur != s.PID) || openTree[cur] {
-				break
-			}
-			// Nunca sobe para containers do SO (explorer.exe, svchost.exe, sihost.exe) para nao herdar apps fechados.
-			if cur != s.PID {
-				if _, isSys := protectedNames[strings.ToLower(strings.TrimSpace(snap.Name))]; isSys {
-					break
-				}
-			}
-			openTree[cur] = true
-			queue = append(queue, cur)
-			if snap.ParentPID == cur {
-				break
-			}
-			cur = snap.ParentPID
-		}
+		markUserAncestors(s.PID, openTree, &queue, byPID)
 	}
-	for len(queue) > 0 {
-		pid := queue[0]
-		queue = queue[1:]
-		for _, ch := range children[pid] {
-			if !openTree[ch] {
-				openTree[ch] = true
-				queue = append(queue, ch)
-			}
-		}
-	}
+	propagateChildren(openTree, queue, children)
 	return openTree
 }
 
@@ -67,7 +92,10 @@ func buildServiceTree(snaps []ProcSnapshot, children map[uint32][]uint32, byPID 
 		if s.SessionID == 0 || s.PID <= 4 {
 			svc[s.PID] = true
 		}
-		if n == "services.exe" || n == "wininit.exe" {
+		// Servicos dedicados em Sessao 0 (e services.exe/wininit.exe) propagam protecao para helpers filhos;
+		// containers genericos (svchost/dllhost/explorer) nao propagam para nao blindar bloatware/UWP.
+		_, isContainer := serviceHostContainers[n]
+		if n == "services.exe" || n == "wininit.exe" || (s.SessionID == 0 && s.PID > 4 && !isContainer) {
 			svc[s.PID] = true
 			queue = append(queue, s.PID)
 		}
@@ -76,8 +104,10 @@ func buildServiceTree(snaps []ProcSnapshot, children map[uint32][]uint32, byPID 
 		pid := queue[0]
 		queue = queue[1:]
 		for _, ch := range children[pid] {
-			if snap, ok := byPID[ch]; ok && strings.EqualFold(strings.TrimSpace(snap.Name), "explorer.exe") {
-				continue
+			if snap, ok := byPID[ch]; ok {
+				if _, isContainer := serviceHostContainers[strings.ToLower(strings.TrimSpace(snap.Name))]; isContainer {
+					continue
+				}
 			}
 			if !svc[ch] {
 				svc[ch] = true
@@ -93,22 +123,32 @@ func buildEssentialTree(snaps []ProcSnapshot, children map[uint32][]uint32) map[
 	var queue []uint32
 	for _, s := range snaps {
 		n := strings.ToLower(strings.TrimSpace(s.Name))
-		if _, ok := essentialAppNames[n]; ok {
+		_, isEssential := essentialAppNames[n]
+		_, isRoot := protectedAppRoots[n]
+		if isEssential || isRoot {
 			ess[s.PID] = true
 			queue = append(queue, s.PID)
 		}
 	}
-	for len(queue) > 0 {
-		pid := queue[0]
-		queue = queue[1:]
-		for _, ch := range children[pid] {
-			if !ess[ch] {
-				ess[ch] = true
-				queue = append(queue, ch)
-			}
-		}
-	}
+	propagateChildren(ess, queue, children)
 	return ess
+}
+
+func buildActiveNetTree(snaps []ProcSnapshot, byPID map[uint32]ProcSnapshot, children map[uint32][]uint32) map[uint32]bool {
+	netTree := make(map[uint32]bool)
+	var queue []uint32
+	for _, s := range snaps {
+		if !s.HasActiveNet && !s.IsNetService {
+			continue
+		}
+		norm := strings.ToLower(strings.TrimSpace(s.Name))
+		if _, isBloat := bloatwareNames[norm]; isBloat {
+			continue
+		}
+		markUserAncestors(s.PID, netTree, &queue, byPID)
+	}
+	propagateChildren(netTree, queue, children)
+	return netTree
 }
 
 func isLanguageServerName(norm string) bool {

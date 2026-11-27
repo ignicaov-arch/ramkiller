@@ -46,7 +46,7 @@ func (a *AppController) handleMainClick(hit HitRegion) {
 		} else {
 			a.lastSummary = "Sem permissão para reciclar este processo (use Modo Kernel)."
 		}
-		a.refreshStats()
+		a.refreshStats(true)
 		a.forceTrayRefresh()
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	case strings.HasPrefix(hit.ID, "kill_pid_") && hit.Arg > 0:
@@ -56,7 +56,7 @@ func (a *AppController) handleMainClick(hit HitRegion) {
 		} else {
 			a.lastSummary = fmt.Sprintf("Não foi possível encerrar %s (%d).", name, hit.Arg)
 		}
-		a.refreshStats()
+		a.refreshStats(true)
 		a.forceTrayRefresh()
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	}

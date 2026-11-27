@@ -17,6 +17,7 @@ type auditEntry struct {
 	Action     domain.ProcAction `json:"action"`
 	Reason     string            `json:"reason"`
 	OpenWindow bool              `json:"openWindow"`
+	NetActive  bool              `json:"netActive,omitempty"`
 	PrivateMB  uint64            `json:"privateMb"`
 }
 
@@ -33,7 +34,15 @@ func runAuditCommand(cfg domain.Config, asJSON bool) int {
 			continue
 		}
 		d := decs[s.PID]
-		rows = append(rows, auditEntry{PID: s.PID, Name: s.Name, Action: d.Action, Reason: d.Reason, OpenWindow: s.HasOpenWindow, PrivateMB: s.PrivateBytes / (1024 * 1024)})
+		rows = append(rows, auditEntry{
+			PID:        s.PID,
+			Name:       s.Name,
+			Action:     d.Action,
+			Reason:     d.Reason,
+			OpenWindow: s.HasOpenWindow,
+			NetActive:  s.HasActiveNet || s.IsNetService,
+			PrivateMB:  s.PrivateBytes / (1024 * 1024),
+		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].PrivateMB > rows[j].PrivateMB })
 	payload := struct {
@@ -43,7 +52,11 @@ func runAuditCommand(cfg domain.Config, asJSON bool) int {
 	printOutput(payload, asJSON, func() {
 		fmt.Printf("DesktopEnumOK=%t | Processos usuario=%d\n", deskOK, len(rows))
 		for _, r := range rows {
-			fmt.Printf("  %-26s PID %-6d %-10s %4d MB  [%s]\n", r.Name, r.PID, r.Action, r.PrivateMB, r.Reason)
+			netFlag := "     "
+			if r.NetActive {
+				netFlag = "[NET]"
+			}
+			fmt.Printf("  %-26s PID %-6d %-11s %s %4d MB  [%s]\n", r.Name, r.PID, r.Action, netFlag, r.PrivateMB, r.Reason)
 		}
 	})
 	return 0

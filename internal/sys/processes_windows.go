@@ -130,6 +130,7 @@ func CollectProcessSnapshots() ([]domain.ProcSnapshot, bool, error) {
 	}
 	ntSessions := readSessionMapNT()
 	openPIDs, deskOK := EnumOpenWindowPIDs()
+	netPIDs := ActiveNetworkPIDs()
 	snaps := make([]domain.ProcSnapshot, 0, len(entries))
 	lsSamples := make(map[uint32]uint64)
 
@@ -137,8 +138,12 @@ func CollectProcessSnapshots() ([]domain.ProcSnapshot, bool, error) {
 		pid := entries[i].ProcessID
 		name := syscall.UTF16ToString(entries[i].ExeFile[:])
 		norm := strings.ToLower(strings.TrimSpace(name))
-		wantCmd := norm == "antigravity.exe" || (strings.HasPrefix(norm, "language_server") && strings.HasSuffix(norm, ".exe"))
+		wantCmd := norm == "antigravity.exe" ||
+			(strings.HasPrefix(norm, "language_server") && strings.HasSuffix(norm, ".exe")) ||
+			norm == "msedgewebview2.exe" || norm == "chrome.exe" || norm == "brave.exe" ||
+			norm == "msedge.exe" || norm == "electron.exe"
 		ws, priv, cmd, _ := readProcDetails(pid, wantCmd)
+		isNetSvc := wantCmd && strings.Contains(strings.ToLower(cmd), "network.mojom.")
 		snaps = append(snaps, domain.ProcSnapshot{
 			PID:             pid,
 			ParentPID:       entries[i].ParentProcessID,
@@ -148,6 +153,8 @@ func CollectProcessSnapshots() ([]domain.ProcSnapshot, bool, error) {
 			PrivateBytes:    priv,
 			WorkingSetBytes: ws,
 			HasOpenWindow:   openPIDs[pid],
+			HasActiveNet:    netPIDs[pid],
+			IsNetService:    isNetSvc,
 		})
 		if strings.HasPrefix(norm, "language_server") && strings.HasSuffix(norm, ".exe") {
 			if ct, ok := readProcCPUTime(pid); ok {

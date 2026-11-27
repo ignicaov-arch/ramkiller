@@ -17,6 +17,10 @@ var essentialAppNames = map[string]struct{}{
 	"memreduct.exe":          {},
 	"wsl.exe":                {},
 	"wslservice.exe":         {},
+	"tailscale-ipn.exe":      {},
+	"tailscale.exe":          {},
+	"cloudflare warp.exe":    {},
+	"nordvpn.exe":            {},
 }
 
 var standaloneLSPNames = map[string]struct{}{
@@ -103,6 +107,7 @@ func decideSingleProc(
 	svcTree map[uint32]bool,
 	openTree map[uint32]bool,
 	essentialTree map[uint32]bool,
+	netTree map[uint32]bool,
 	bestHub map[uint32]uint32,
 	desktopEnumOK bool,
 	anomalyLimitMB int,
@@ -110,7 +115,7 @@ func decideSingleProc(
 	if s.PID <= 4 || svcTree[s.PID] || selfAncestors[s.PID] {
 		return ProcDecision{Action: ProcKeepSystem, Reason: "núcleo do sistema / serviço Windows"}
 	}
-	if _, ok := protectedNames[norm]; ok || norm == "mpdefendercoreService.exe" {
+	if _, ok := protectedNames[norm]; ok {
 		return ProcDecision{Action: ProcKeepSystem, Reason: "processo protegido do Windows"}
 	}
 	if norm == "conhost.exe" {
@@ -129,7 +134,7 @@ func decideSingleProc(
 		if hasActiveTaskChild(s.PID, children, byPID) {
 			return ProcDecision{Action: ProcKeepAndTrim, Reason: "LSP com tarefa ativa"}
 		}
-		return ProcDecision{Action: ProcKill, Reason: "LSP auxiliar em segundo plano"}
+		return ProcKillDecision(norm)
 	}
 	if s.HasOpenWindow || openTree[s.PID] {
 		return ProcDecision{Action: ProcKeepAndTrim, Reason: "janela aberta ou árvore ativa"}
@@ -137,13 +142,21 @@ func decideSingleProc(
 	if essentialTree[s.PID] {
 		return ProcDecision{Action: ProcKeepAndTrim, Reason: "aplicativo principal protegido"}
 	}
+	if (s.HasActiveNet || s.IsNetService || netTree[s.PID]) && !isBloatwareName(norm) {
+		return ProcDecision{Action: ProcKeepAndTrim, Reason: "conexão de rede ativa preservada"}
+	}
 	if desktopEnumOK {
 		return ProcKillDecision(norm)
 	}
-	if _, isBloat := bloatwareNames[norm]; isBloat {
+	if isBloatwareName(norm) {
 		return ProcDecision{Action: ProcKill, Reason: "utilitário ocioso em segundo plano"}
 	}
 	return ProcDecision{Action: ProcKeepAndTrim, Reason: "preservado (enumeração de desktop indisponível)"}
+}
+
+func isBloatwareName(norm string) bool {
+	_, ok := bloatwareNames[norm]
+	return ok
 }
 
 // ProcKillDecision retorna a decisao padrao de encerramento em segundo plano.
@@ -169,11 +182,12 @@ func ClassifyProcesses(snaps []ProcSnapshot, selfPID uint32, desktopEnumOK bool,
 	svcTree := buildServiceTree(snaps, children, byPID)
 	openTree := buildOpenTree(snaps, byPID, children)
 	essentialTree := buildEssentialTree(snaps, children)
+	netTree := buildActiveNetTree(snaps, byPID, children)
 	bestHub := findActiveLanguageServerHubs(snaps, brokers)
 	decisions := make(map[uint32]ProcDecision, len(snaps))
 	for _, s := range snaps {
 		norm := strings.ToLower(strings.TrimSpace(s.Name))
-		decisions[s.PID] = decideSingleProc(s, norm, byPID, children, brokers, selfAncestors, svcTree, openTree, essentialTree, bestHub, desktopEnumOK, anomalyLimitMB)
+		decisions[s.PID] = decideSingleProc(s, norm, byPID, children, brokers, selfAncestors, svcTree, openTree, essentialTree, netTree, bestHub, desktopEnumOK, anomalyLimitMB)
 	}
 	return decisions
 }

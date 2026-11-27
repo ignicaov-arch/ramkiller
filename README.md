@@ -2,10 +2,10 @@
 
 Utilitário nativo para Windows 10 e Windows 11 focado na barra de tarefas (System Tray) para limpeza real de memória RAM, eliminação cirúrgica de processos ociosos em segundo plano, autoregeneração automática e controle de kernel NT sem telemetria ou recursos supérfluos.
 
-## O que o RamKiller v2.0 faz
+## O que o RamKiller v2.4 faz
 
-1. **Todas as Clean Areas Ativas por Padrão (`MaskAll` + Modo Kernel):**
-   - Habilita `SeProfileSingleProcessPrivilege`, `SeIncreaseQuotaPrivilege` e `SeDebugPrivilege` e executa as **8 regiões reais do kernel NT** via `ntdll.dll!NtSetSystemInformation` e `SetSystemFileCacheSize`:
+1. **Todas as Clean Areas Ativas por Padrão (`MaskAll` + Modo Kernel sem Engasgos):**
+   - Habilita `SeProfileSingleProcessPrivilege`, `SeIncreaseQuotaPrivilege` e `SeDebugPrivilege` e executa as **8 regiões reais do kernel NT** via `ntdll.dll!NtSetSystemInformation` e `SetSystemFileCacheSize` em ordem segura (`Standby` antes de `WorkingSet` para evitar *hard page-fault storms* e sem trava síncrona de volume no ciclo automático):
      - Cache Working Set (vista+)
      - Cache do Sistema
      - Lista de Espera s/ prioridade (vista+)
@@ -14,9 +14,9 @@ Utilitário nativo para Windows 10 e Windows 11 focado na barra de tarefas (Syst
      - Combinar Listas de Memória (win10+)
      - Cache do Registro e Cache de Arquivos Modificados
 
-2. **Preserva Abertos e Principais, Encerra o Resto (`WinSta0\Default`):**
-   - Enumera todas as janelas abertas reais em `WinSta0\Default` (`EnumDesktopWindows` + `DwmGetWindowAttribute` + `EnumChildWindows`), protegendo integralmente as árvores dos aplicativos abertos pelo usuário, serviços do sistema (`services.exe`, drivers, áudio Realtek, Vanguard, Defender) e aplicativos principais.
-   - **Antigravity + `language_server`:** preserva o `Antigravity.exe` principal e o hub ativo do `language_server` (aplicando reciclagem de Working Set sem interromper tarefas ou IDE), enquanto encerra instâncias órfãs/duplicadas de `language_server`, LSPs ociosos e renderers vazadores acima do teto configurado.
+2. **Preserva Abertos, Conexões TCP Ativas, Áreas Virtuais e Árvores de Serviços (`WinSta0\Default`):**
+   - Enumera janelas abertas reais em `WinSta0\Default` (incluindo outras Áreas de Trabalho Virtuais `DWM_CLOAKED_SHELL`) e consulta conexões TCP ativas via `GetExtendedTcpTable` (IPv4/IPv6), protegendo integralmente processos com sockets `ESTABLISHED`/`SYN_SENT`, `NetworkService` WebView2/Chromium, VPNs (`Tailscale`, `WARP`, `WireGuard`, `OpenVPN`), árvores de serviços dedicados e aplicativos principais (`TeamViewer`, `AnyDesk`, `RustDesk`).
+   - **Antigravity + `language_server`:** preserva o `Antigravity.exe` principal e o hub ativo do `language_server` (aplicando reciclagem rápida de Working Set sem interromper tarefas ou IDE), enquanto encerra instâncias órfãs/duplicadas de `language_server`, LSPs ociosos e renderers vazadores acima do teto configurado.
    - Encerra (`TerminateProcess`) o restante dos processos descartáveis em segundo plano sem janela aberta (bloatware, WebView2 órfãos, updaters e helpers ociosos).
 
 3. **Autoregeneração (`--guardian`), Inicialização no Boot e Pausa Temporária:**

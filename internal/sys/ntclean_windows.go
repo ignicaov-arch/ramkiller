@@ -100,8 +100,8 @@ func flushFixedVolumes() int {
 	return flushed
 }
 
-// RunKernelClean executa limpeza profunda NT Kernel nas regioes especificadas pela mascara.
-func RunKernelClean(mask domain.CleanRegion) (executed bool, warnings []string) {
+// RunKernelClean executa limpeza profunda NT Kernel evitando hard page-fault storm e travas de disco em auto.
+func RunKernelClean(mask domain.CleanRegion, src domain.CleanSource) (executed bool, warnings []string) {
 	if !IsElevated() {
 		return false, []string{"Modo Kernel requer elevacao de Administrador (limpeza em modo usuario executada)."}
 	}
@@ -126,7 +126,8 @@ func RunKernelClean(mask domain.CleanRegion) (executed bool, warnings []string) 
 			return uint32(st)
 		})
 	}
-	if mask&domain.RegionModifiedFileCache != 0 {
+	// Evita barreira sincrona FlushFileBuffers em volumes inteiros no ciclo automatico em 2o plano.
+	if mask&domain.RegionModifiedFileCache != 0 && src != domain.SourceAuto {
 		if flushFixedVolumes() > 0 {
 			successes++
 		}
@@ -140,17 +141,26 @@ func RunKernelClean(mask domain.CleanRegion) (executed bool, warnings []string) 
 			return uint32(st)
 		})
 	}
-	if mask&domain.RegionWorkingSet != 0 {
-		runCmd("WorkingSet(Kernel)", func() uint32 { return ntMemoryListCommand(memCmdEmptyWorkingSets) })
-	}
 	if mask&domain.RegionModifiedPageList != 0 {
 		runCmd("ModifiedPageList", func() uint32 { return ntMemoryListCommand(memCmdFlushModifiedList) })
 	}
 	if mask&domain.RegionStandbyPriority0 != 0 {
 		runCmd("StandbyPriority0", func() uint32 { return ntMemoryListCommand(memCmdPurgeLowPriorityStandby) })
 	}
+	// Purgar Standby ANTES de EmptyWorkingSets mantém paginas quentes dos apps em Standby (soft fault em RAM, zero travamento).
 	if mask&domain.RegionStandbyList != 0 {
-		runCmd("StandbyList", func() uint32 { return ntMemoryListCommand(memCmdPurgeStandbyList) })
+		if src == domain.SourceAuto {
+			if mask&domain.RegionStandbyPriority0 == 0 {
+				runCmd("StandbyAutoSafe", func() uint32 { return ntMemoryListCommand(memCmdPurgeLowPriorityStandby) })
+			} else {
+				successes++
+			}
+		} else {
+			runCmd("StandbyList", func() uint32 { return ntMemoryListCommand(memCmdPurgeStandbyList) })
+		}
+	}
+	if mask&domain.RegionWorkingSet != 0 {
+		runCmd("WorkingSet(Kernel)", func() uint32 { return ntMemoryListCommand(memCmdEmptyWorkingSets) })
 	}
 	return successes > 0, warnings
 }

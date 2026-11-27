@@ -9,13 +9,15 @@ import (
 )
 
 const (
-	desktopReadObjects     = 0x0001
-	desktopEnumerate       = 0x0040
-	dwmwaCloaked           = 14
-	procCommandLineInfo    = 60
-	statusInfoLenMismatch  = 0xC0000004
-	statusBufferTooSmall   = 0xC0000023
-	statusBufferOverflow   = 0x80000005
+	desktopReadObjects    = 0x0001
+	desktopEnumerate      = 0x0040
+	dwmwaCloaked          = 14
+	dwmCloakedApp         = 0x00000001
+	dwmCloakedInherited   = 0x00000004
+	procCommandLineInfo   = 60
+	statusInfoLenMismatch = 0xC0000004
+	statusBufferTooSmall  = 0xC0000023
+	statusBufferOverflow  = 0x80000005
 )
 
 type unicodeString struct {
@@ -46,8 +48,17 @@ func readWindowTitle(hwnd uintptr) string {
 	return syscall.UTF16ToString(buf)
 }
 
-func isIgnoredShellTitle(title string) bool {
-	return title == "" || title == "Program Manager" || title == "Windows Input Experience"
+func isIgnoredShellTitle(title string, cloaked uint32) bool {
+	if title == "" || title == "Program Manager" || title == "Windows Input Experience" {
+		return true
+	}
+	if cloaked != 0 {
+		switch title {
+		case "Settings", "Configurações", "Microsoft Text Input Application", "Cortana", "Search":
+			return true
+		}
+	}
+	return false
 }
 
 func enumChildWindowProc(hwnd, _ uintptr) uintptr {
@@ -66,11 +77,12 @@ func enumTopWindowProc(hwnd, _ uintptr) uintptr {
 	}
 	var cloaked uint32
 	procDwmGetWindowAttribute.Call(hwnd, dwmwaCloaked, uintptr(unsafe.Pointer(&cloaked)), 4)
-	if cloaked != 0 {
+	// Preserva janelas em outra Area de Trabalho Virtual (DWM_CLOAKED_SHELL=0x2); descarta apps suspensos (0x1/0x4).
+	if cloaked&(dwmCloakedApp|dwmCloakedInherited) != 0 {
 		return 1
 	}
 	title := readWindowTitle(hwnd)
-	if isIgnoredShellTitle(title) {
+	if isIgnoredShellTitle(title, cloaked) {
 		return 1
 	}
 	var pid uint32

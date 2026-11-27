@@ -10,9 +10,16 @@ import (
 	"github.com/ignicaov-arch/ramkiller/internal/sys"
 )
 
-func (a *AppController) refreshStats() {
+func (a *AppController) refreshStats(includeTopProcs bool) {
 	cfg := a.getConfig()
-	if st, err := sys.ReadMemoryStats(5, cfg.AnomalyLimitMB); err == nil {
+	topN := 0
+	if includeTopProcs {
+		topN = 5
+	}
+	if st, err := sys.ReadMemoryStats(topN, cfg.AnomalyLimitMB); err == nil {
+		if !includeTopProcs && len(st.TopProcesses) == 0 {
+			st.TopProcesses = a.stats.TopProcesses
+		}
 		a.stats = st
 	}
 }
@@ -33,7 +40,8 @@ func (a *AppController) onTick() {
 		return
 	}
 	a.tickCount++
-	a.refreshStats()
+	vis, _, _ := procIsWindowVisible.Call(a.mainHWND)
+	a.refreshStats(vis != 0 && a.tickCount%3 == 0)
 	cfg := a.getConfig()
 	pct := a.stats.Physical.Percent
 
@@ -50,7 +58,7 @@ func (a *AppController) onTick() {
 		_ = sys.EnsureGuardianRunning()
 	}
 
-	if vis, _, _ := procIsWindowVisible.Call(a.mainHWND); vis != 0 {
+	if vis != 0 {
 		procInvalidateRect.Call(a.mainHWND, 0, 0)
 	}
 	a.mu.RLock()
@@ -105,12 +113,13 @@ func (a *AppController) onCleanFinished() {
 			a.tray.ShowBalloon("RamKiller", a.lastSummary, cfg.NotificationSound)
 		}
 	}
-	a.refreshStats()
+	a.refreshStats(true)
 	a.forceTrayRefresh()
 	procInvalidateRect.Call(a.mainHWND, 0, 0)
 }
 
 func (a *AppController) showMainWindow() {
+	a.refreshStats(true)
 	procShowWindow.Call(a.mainHWND, SW_RESTORE)
 	procSetForegroundWnd.Call(a.mainHWND)
 	procInvalidateRect.Call(a.mainHWND, 0, 0)

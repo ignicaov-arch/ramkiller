@@ -88,7 +88,7 @@ func RunApp(startMinimized bool, isBoot bool) error {
 		lastIconPct: -1,
 	}
 	ctrl.taskbarCreatedMsg = registerTaskbarMsg()
-	ctrl.refreshStats()
+	ctrl.refreshStats(!startMinimized)
 
 	hwnd := createFixedDarkWindow(mainClassName, "RamKiller", mainWinWidth, mainWinHeight, syscall.NewCallback(ctrl.mainWndProc), !startMinimized)
 	if hwnd == 0 {

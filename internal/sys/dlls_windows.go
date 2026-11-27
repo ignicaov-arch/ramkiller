@@ -44,6 +44,7 @@ var (
 	Gdiplus  = LoadSystemDLL("gdiplus.dll")
 	Dwmapi   = LoadSystemDLL("dwmapi.dll")
 	Comdlg32 = LoadSystemDLL("comdlg32.dll")
+	Iphlpapi = LoadSystemDLL("iphlpapi.dll")
 )
 
 var (
@@ -104,9 +105,10 @@ var (
 	procGetWindowTextW           = User32.NewProc("GetWindowTextW")
 	procDwmGetWindowAttribute    = Dwmapi.NewProc("DwmGetWindowAttribute")
 
-	procShellExecuteW  = Shell32.NewProc("ShellExecuteW")
-	procSHChangeNotify = Shell32.NewProc("SHChangeNotify")
-	procCoInitializeEx = Ole32.NewProc("CoInitializeEx")
-	procCoUninitialize = Ole32.NewProc("CoUninitialize")
-	procCoCreateInst   = Ole32.NewProc("CoCreateInstance")
+	procShellExecuteW       = Shell32.NewProc("ShellExecuteW")
+	procSHChangeNotify      = Shell32.NewProc("SHChangeNotify")
+	procCoInitializeEx      = Ole32.NewProc("CoInitializeEx")
+	procCoUninitialize      = Ole32.NewProc("CoUninitialize")
+	procCoCreateInst        = Ole32.NewProc("CoCreateInstance")
+	procGetExtendedTcpTable = Iphlpapi.NewProc("GetExtendedTcpTable")
 )

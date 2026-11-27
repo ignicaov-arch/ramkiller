@@ -80,7 +80,7 @@ func (e *Engine) Clean(
 	}
 
 	if res.Elevated {
-		kernelOK, warns := RunKernelClean(mask)
+		kernelOK, warns := RunKernelClean(mask, src)
 		res.KernelExecuted = kernelOK
 		res.Warnings = append(res.Warnings, warns...)
 	}
